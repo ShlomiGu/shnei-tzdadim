@@ -1430,6 +1430,107 @@ async function copyText(t, okMsg) {
 let pendingTask = null;
 const isVideo = f => /^video\//.test(f.type) || /\.(mp4|mov|m4v|webm)$/i.test(f.name);
 const MAX_VIDEO = 50 * 1024 * 1024;
+const DIRECT_MAX = 47 * 1024 * 1024;          // above this a video is compressed on the device first
+const TARGET_BYTES = 44 * 1024 * 1024;        // leave room under the server's 50MB cap
+let AC = null, compLock = Promise.resolve();
+const canCompress = () => !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
+// Must run inside the tap: unlocks audio and playback for the videos that will be compressed.
+function prepCompression(files) {
+  const big = files.filter(f => isVideo(f) && f.size > DIRECT_MAX);
+  if (!big.length || !canCompress()) return;
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === "suspended") AC.resume(); } catch { AC = null; }
+  for (const f of big) {
+    const v = document.createElement("video");
+    v.playsInline = true; v.setAttribute("playsinline", ""); v.preload = "auto"; v.crossOrigin = "anonymous";
+    v.src = URL.createObjectURL(f);
+    let dest = null;
+    if (AC) { try { const src = AC.createMediaElementSource(v); dest = AC.createMediaStreamDestination(); src.connect(dest); } catch { dest = null; } }
+    if (!dest) v.muted = true;
+    const pr = v.play(); if (pr && pr.then) pr.then(() => v.pause(), () => {}); else v.pause();
+    f._comp = { v, dest };
+  }
+}
+function compressVideo(it) {
+  const run = compLock.then(() => doCompress(it));
+  compLock = run.catch(() => {});
+  return run;
+}
+async function doCompress(it) {
+  const f = it.f;
+  if (!canCompress()) throw new ApiError("too_big");
+  let c = f._comp;
+  if (!c) { const v = document.createElement("video"); v.playsInline = true; v.setAttribute("playsinline", ""); v.muted = true; v.preload = "auto"; v.src = URL.createObjectURL(f); c = { v, dest: null }; }
+  const v = c.v;
+  it.phase = "compress"; renderUQ();
+  if (v.readyState < 1) await new Promise((res, rej) => { v.addEventListener("loadedmetadata", res, { once: true }); v.addEventListener("error", () => rej(new ApiError("decode")), { once: true }); setTimeout(() => rej(new ApiError("decode")), 15000); });
+  const dur = v.duration;
+  if (!isFinite(dur) || dur <= 0) throw new ApiError("decode");
+  let vbr = Math.floor(TARGET_BYTES * 8 / dur) - 160000;
+  vbr = Math.min(vbr, 4500000);
+  if (vbr < 450000) throw new ApiError("too_long");
+  const longSide = vbr >= 3000000 ? 1920 : vbr >= 1500000 ? 1280 : 960;
+  const sc = Math.min(1, longSide / Math.max(v.videoWidth || 1280, v.videoHeight || 720));
+  const W = Math.max(2, Math.round((v.videoWidth || 1280) * sc / 2) * 2), H = Math.max(2, Math.round((v.videoHeight || 720) * sc / 2) * 2);
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const cx = cv.getContext("2d", { alpha: false });
+  const stream = cv.captureStream(30);
+  const tracks = [...stream.getVideoTracks()];
+  if (c.dest) tracks.push(...c.dest.stream.getAudioTracks());
+  const mime = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
+    .find(m => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } });
+  if (!mime) throw new ApiError("too_big");
+  const rec = new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: vbr, audioBitsPerSecond: 128000 });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(r => rec.onstop = r);
+  let wake = null; try { wake = await navigator.wakeLock?.request("screen"); } catch {}
+  v.pause();
+  if (v.currentTime > 0.05) await new Promise(r => { v.addEventListener("seeked", r, { once: true }); v.currentTime = 0; });
+  cx.drawImage(v, 0, 0, W, H);
+  let live = true;
+  const draw = () => { if (!live) return; try { cx.drawImage(v, 0, 0, W, H); } catch {} };
+  const loopRVFC = () => { if (!live) return; draw(); v.requestVideoFrameCallback(loopRVFC); };
+  const iv = setInterval(draw, 1000 / 30);
+  if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(loopRVFC);
+  const onTime = () => setProg(it, Math.min(1, v.currentTime / dur) * .6);
+  v.addEventListener("timeupdate", onTime);
+  // the phone pauses video when the screen is off or the app is hidden: pause the recording too, resume on return
+  const onVis = () => {
+    if (document.hidden) { if (rec.state === "recording") rec.pause(); }
+    else if (!v.ended) { v.play().then(() => { if (rec.state === "paused") rec.resume(); }, () => {}); }
+  };
+  document.addEventListener("visibilitychange", onVis);
+  rec.start(1000);
+  try {
+    await v.play();
+    await new Promise((res, rej) => {
+      v.addEventListener("ended", res, { once: true });
+      v.addEventListener("error", () => rej(new ApiError("decode")), { once: true });
+      // safety net: if playback stalls for a long time, finish with what we have
+      let last = -1, still = 0;
+      const watch = setInterval(() => {
+        if (document.hidden) return;
+        if (v.currentTime === last) { if (++still > 40) { clearInterval(watch); res(); } } else { still = 0; last = v.currentTime; }
+        if (v.ended) { clearInterval(watch); res(); }
+      }, 500);
+    });
+  } finally {
+    live = false; clearInterval(iv);
+    v.removeEventListener("timeupdate", onTime);
+    document.removeEventListener("visibilitychange", onVis);
+    if (rec.state !== "inactive") rec.stop();
+    await stopped;
+    tracks.forEach(t => t.stop());
+    try { URL.revokeObjectURL(v.src); } catch {}
+    try { wake && wake.release(); } catch {}
+  }
+  const type = mime.split(";")[0], ext = type === "video/webm" ? "webm" : "mp4";
+  const out = new Blob(chunks, { type });
+  if (!out.size) throw new ApiError("decode");
+  if (out.size > MAX_VIDEO) throw new ApiError("too_big");
+  it.phase = null;
+  return new File([out], (f.name || "video").replace(/\.[^.]+$/, "") + "." + ext, { type });
+}
 function pick(taskId) { pendingTask = taskId || null; const fp = $("#filepick"); fp.value = ""; fp.click(); }
 $("#filepick").addEventListener("change", e => {
   const files = Array.from(e.target.files || []).filter(f => /^(image|video)\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp|mp4|mov|m4v|webm)$/i.test(f.name)).slice(0, 30);
@@ -1439,7 +1540,8 @@ function uploadSheet(files, taskId) {
   const rv = isRevealed();
   let vis = "team";
   const task = taskId ? S.st.tasks.find(t => t.id === taskId) : null;
-  const tooBig = files.filter(f => isVideo(f) && f.size > MAX_VIDEO);
+  const tooBig = canCompress() ? [] : files.filter(f => isVideo(f) && f.size > MAX_VIDEO);
+  const willCompress = canCompress() ? files.filter(f => isVideo(f) && f.size > DIRECT_MAX) : [];
   const okFiles = files.filter(f => !tooBig.includes(f));
   const urls = okFiles.map(f => isVideo(f) ? null : URL.createObjectURL(f));
   const nV = okFiles.filter(isVideo).length, nI = okFiles.length - nV;
@@ -1449,6 +1551,7 @@ function uploadSheet(files, taskId) {
     <div class="stack">
       ${task ? `<div class="notice">${ic("star", 18)}<span>${esc(task.title)} · +${Number(task.pts) || 0} נק׳</span></div>` : ""}
       ${tooBig.length ? `<div class="notice">${ic("x", 18)}<span>${tooBig.length === 1 ? "סרטון אחד גדול" : tooBig.length + " סרטונים גדולים"} מ-50MB ולא ${tooBig.length === 1 ? "יעלה" : "יעלו"}. קצרו או צלמו ב-1080p.</span></div>` : ""}
+      ${willCompress.length ? `<div class="notice">${ic("play", 18)}<span>${willCompress.length === 1 ? "הסרטון גדול, אז נדחס אותו בטלפון" : `${willCompress.length} סרטונים גדולים, נדחס אותם בטלפון`} לפני ההעלאה. זה לוקח בערך כמו אורך הסרטון. השאירו את המסך פתוח עד שזה מסתיים.</span></div>` : ""}
       ${okFiles.length ? `<div class="previews">${okFiles.map((f, i) => urls[i] ? `<div class="tile"><img src="${urls[i]}" alt=""></div>` : `<div class="tile prev-v">${ic("play", 22)}<span dir="ltr">${(f.size / 1048576).toFixed(0)}MB</span></div>`).join("")}</div>
       <div class="field"><label for="up-cap">כיתוב</label><input class="input" id="up-cap" maxlength="120" placeholder="מה קורה כאן?"></div>
       <div class="lbl">מי יראה</div>
@@ -1471,6 +1574,7 @@ function uploadSheet(files, taskId) {
     if (go) go.onclick = () => {
       const cap = $("#up-cap", sh).value.trim();
       urls.forEach(u => u && setTimeout(() => URL.revokeObjectURL(u), 60000));
+      prepCompression(okFiles);
       enqueue(okFiles, cap, vis, taskId);
       closeSheet();
       if (!task && S.view !== "album") { S.albumTab = "ours"; location.hash = "album"; }
@@ -1500,7 +1604,7 @@ async function finishBatch(b) {
   if (b.ids.length && b.vis === "teaser") await act(() => rpc("send_teaser", { p_token: S.token, p_body: b.caption, p_photos: b.ids.slice(0, 4) }));
   await refresh();
   if (b.ids.length) toast(b.task ? `משימה הושלמה! +${Number(b.task.pts) || 0}` : b.ids.length === 1 ? "עלה בהצלחה" : `${b.ids.length} פריטים עלו`, "check");
-  if (b.fails) toast(b.err === "quota" ? ERR.quota : b.fails === 1 ? "פריט אחד לא עלה. בדקו חיבור ונסו שוב" : `${b.fails} פריטים לא עלו. בדקו חיבור ונסו שוב`, "x");
+  if (b.fails) toast(b.err === "too_long" ? "הסרטון ארוך מדי לדחיסה (מעל 10 דקות). חתכו אותו לחלקים ונסו שוב" : b.err === "too_big" ? "הסרטון לא נדחס מספיק. נסו לחתוך אותו לחלק קצר יותר" : b.err === "quota" ? ERR.quota : b.fails === 1 ? "פריט אחד לא עלה. בדקו חיבור ונסו שוב" : `${b.fails} פריטים לא עלו. בדקו חיבור ונסו שוב`, "x");
   if (UQ.items.every(x => x.state === "done" || x.state === "fail")) setTimeout(() => { if (UQ.items.every(x => x.state === "done" || x.state === "fail")) { UQ.items = []; renderUQ(); } }, 2200);
 }
 let uqRaf = 0;
@@ -1515,7 +1619,8 @@ function renderUQ() {
     const total = items.length, done = items.filter(x => x.state === "done").length, fail = items.filter(x => x.state === "fail").length;
     const prog = items.reduce((a, x) => a + (x.state === "done" || x.state === "fail" ? 1 : x.prog), 0) / total;
     const running = items.some(x => x.state === "run" || x.state === "wait");
-    el.innerHTML = `<span class="upq-ring" style="--p:${Math.round(prog * 100)}"></span><span>${running ? `מעלה ${Math.min(done + fail + 1, total)} מתוך ${total} · ${Math.round(prog * 100)}%` : fail ? `${done} עלו, ${fail} נכשלו` : "הכל עלה"}</span>`;
+    const comp = items.some(x => x.state === "run" && x.phase === "compress");
+    el.innerHTML = `<span class="upq-ring" style="--p:${Math.round(prog * 100)}"></span><span>${comp ? `דוחסים סרטון · ${Math.round(prog * 100)}% · השאירו את המסך פתוח` : running ? `מעלה ${Math.min(done + fail + 1, total)} מתוך ${total} · ${Math.round(prog * 100)}%` : fail ? `${done} עלו, ${fail} נכשלו` : "הכל עלה"}</span>`;
   });
 }
 const setProg = (it, p) => { it.prog = clamp(p, 0, 1); renderUQ(); };
@@ -1529,6 +1634,7 @@ async function processItem(it, attempt = 0) {
     console.warn(e);
     if (e && e.code === "decode") { toast("קובץ אחד לא נפתח. נסו JPG או PNG", "x"); return null; }
     if (e && (e.code === "quota" || /413|exceed/i.test(String(e.message || e)))) { it.batch.err = "quota"; return it.registered || null; }
+    if (e && (e.code === "too_long" || e.code === "too_big")) { it.batch.err = e.code; return null; }
     if (attempt < 1 && !it.registered) { await new Promise(r => setTimeout(r, 1500)); return processItem(it, attempt + 1); }
     return it.registered || null;
   }
@@ -1581,15 +1687,16 @@ async function fallbackPoster() {
   return { blob: await toBlob(c, "image/jpeg", .8), type: "image/jpeg", ext: "jpg", blur: null, w: null, h: null, duration: null };
 }
 async function processVideo(it, base) {
-  const f = it.f;
-  const meta = (await videoPoster(f)) || (await fallbackPoster());
+  const meta = (await videoPoster(it.f)) || (await fallbackPoster());
+  let f = it.f, share = 0;
+  if (f.size > DIRECT_MAX) { f = it.compressed || (it.compressed = await compressVideo(it)); share = .6; }
   let ext = ((f.name.match(/\.(mp4|mov|m4v|webm)$/i) || [])[1] || "").toLowerCase();
   if (!ext) ext = /webm/.test(f.type) ? "webm" : /quicktime/.test(f.type) ? "mov" : "mp4";
   if (ext === "m4v") ext = "mp4";
   const type = ext === "mov" ? "video/quicktime" : ext === "webm" ? "video/webm" : "video/mp4";
   const vpath = `${base}.${ext}`, tpath = `${base}_t.${meta.ext}`;
-  await putFile(tpath, meta.blob, meta.type, p => setProg(it, p * .04));
-  await tusUpload(vpath, f, type, p => setProg(it, .04 + p * .96));
+  await putFile(tpath, meta.blob, meta.type, p => setProg(it, share + p * .04));
+  await tusUpload(vpath, f, type, p => setProg(it, share + .04 + p * (.96 - share)));
   const id = await rpc("add_media", { p_token: S.token, p_kind: "video", p_path: vpath, p_thumb: tpath, p_blur: meta.blur, p_w: meta.w, p_h: meta.h, p_duration: meta.duration, p_caption: it.caption, p_vis: it.vis, p_task: it.taskId || null });
   it.registered = id;
   return id;
