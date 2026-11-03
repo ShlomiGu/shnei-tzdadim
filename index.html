@@ -380,6 +380,17 @@ input[type="date"].input,input[type="time"].input{text-align:right}
 .moments-empty span{font-size:13.5px;color:var(--muted)}
 a.nn{color:inherit}
 .toast-act{margin-inline-start:6px;padding:4px 12px;border-radius:999px;background:var(--bg);color:var(--ink);font-weight:700;font-size:13.5px;flex:none}
+.more-opts summary{cursor:pointer;list-style:none;font-size:14px;font-weight:600;color:var(--me);padding:6px 2px;display:inline-flex;align-items:center;gap:6px}
+.more-opts summary::-webkit-details-marker{display:none}
+.more-opts summary::after{content:"";width:7px;height:7px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg) translateY(-2px);transition:transform .2s}
+.more-opts[open] summary::after{transform:rotate(135deg) translateY(-2px)}
+.tile .early{position:absolute;top:6px;left:6px;font-size:11px;font-weight:700;color:#fff;background:var(--gold);padding:2px 8px;border-radius:999px;z-index:1}
+.early-pill{margin-top:8px;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:#fff;background:var(--gold);padding:3px 10px;border-radius:999px}
+.lb .vis-btn{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;min-height:42px;padding:0 14px;border-radius:999px;background:rgb(255 255 255 / .12);font-weight:600;font-size:14px}
+.lb .vis-btn span{flex:1;text-align:start}
+.vis-row{display:flex;flex-wrap:wrap;gap:6px}
+.vis-row button{padding:8px 13px;border-radius:999px;background:rgb(255 255 255 / .12);color:#E9DEE6;font-size:13.5px;font-weight:600}
+.vis-row button[aria-pressed="true"]{background:#F3ECF1;color:#1B1120}
 /* media */
 .tile{background-size:cover;background-position:center}
 .tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
@@ -454,6 +465,7 @@ const store = {
 };
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
 const fmtDur = d => { d = Math.max(0, Math.round(Number(d) || 0)); return `${Math.floor(d / 60)}:${pad(d % 60)}`; };
+const VIS_LABEL = v => ({ team: isRevealed() ? "גלוי לכולם" : "רק החבורה", teaser: "טיזר מטושטש", escorts: "למלווים של הצד השני", secret: "סוד של החבורה" })[v] || "רק החבורה";
 const fmtCode = c => c ? `${c.slice(0, 3)}-${c.slice(3)}` : "";
 
 const I = {
@@ -485,6 +497,7 @@ const I = {
   edit:'<path d="M4.5 19.5h4l10-10a2.8 2.8 0 0 0-4-4l-10 10z"/>',
   arrowR:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+  friends:'<circle cx="9" cy="8.5" r="3.2"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M3.5 19.5c.7-3.2 2.9-5 5.5-5s4.8 1.8 5.5 5"/><path d="M14.8 14.7c.5-.1 1.1-.2 1.7-.2 2.2 0 4 1.5 4.5 4.5"/>',
   nav:'<path d="M12 2.8 19.5 21 12 16.8 4.5 21z"/>'
 };
 const ic = (n, s = 22, w = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n] || ""}</svg>`;
@@ -677,6 +690,8 @@ function notifyNew(prev, st) {
       if (t.team !== st.me.team) toast(`טיזר חדש מ${teamLabel(t.team)}`, "note");
     }
   }
+  const newEarly = st.photos.filter(p => p.early && !prev.photos.some(q => q.id === p.id));
+  if (newEarly.length) toast(newEarly.length === 1 ? `תמונה חדשה נשלחה אליכם מהצד של ${coupleName(newEarly[0].team)}` : `${newEarly.length} תמונות חדשות נשלחו אליכם`, "friends");
   if (!prev.revealed && st.revealed) setTimeout(showRevealOverlay, 300);
 }
 async function poll() {
@@ -763,6 +778,7 @@ function vHome() {
   const leader = sc.groom === sc.bride ? "תיקו. מי ישבור אותו?" : `${teamLabel(sc.groom > sc.bride ? "groom" : "bride")} מובילה ב-${Math.abs(sc.groom - sc.bride)} נק׳`;
   const hidden = S.st.hidden;
   const teased = S.st.photos.filter(p => p.team === other && p.mode === "blur").length;
+  const early = S.st.photos.filter(p => p.early).length;
   const lastTeasers = S.st.teasers.filter(t => t.team === other).slice(-2).reverse();
   const myOpen = S.st.tasks.filter(t => !t.done && t.who === ME().id).length;
   const memberCount = S.st.members.filter(m => m.team === side).length;
@@ -793,6 +809,7 @@ function vHome() {
       <span style="min-width:0">
         <h3>${hidden ? `${hidden} תמונות מתחת להינומה` : "הצד השני עוד לא העלה כלום"}</h3>
         <span class="small muted" style="display:block;margin-top:4px">${hidden ? `${teamLabel(other)} מצלמת בלעדיכם. הכל נפתח ברגע החשיפה${teased ? `, ובינתיים יש ${teased} טיזרים מטושטשים` : ""}.` : `ברגע ש${teamLabel(other)} תעלה תמונות, תראו כאן כמה מחכות לכם.`}</span>
+        ${early ? `<span class="early-pill">${ic("friends", 14)}${early} נשלחו אליכם</span>` : ""}
       </span>
     </button>` : ""}
 
@@ -829,7 +846,7 @@ function vHome() {
 function tileHtml(p, opts = {}) {
   if (!p) return `<div class="tile veiled lace"><span class="lockc">${ic("lock", 22, 2)}</span></div>`;
   const full = p.mode === "full";
-  const vb = p.team === mySide() ? (p.vis === "teaser" ? "eye" : p.vis === "secret" ? "shield" : "lock") : "";
+  const vb = p.team === mySide() ? (p.vis === "teaser" ? "eye" : p.vis === "secret" ? "shield" : p.vis === "escorts" ? "friends" : "lock") : "";
   const blur = safeBlur(p.blur);
   const src = full ? pub(p.thumb_path) : blur;
   return `<button class="tile ${full ? "" : "blur"}" data-act="photo" data-id="${esc(p.id)}" aria-label="${esc(p.caption || (p.kind === "video" ? "סרטון" : "תמונה"))}"${full && blur ? ` style="background-image:url('${blur}')"` : ""}>
@@ -840,6 +857,7 @@ function tileHtml(p, opts = {}) {
     ${vb && full && !opts.ribbon ? `<span class="b">${ic(vb, 14, 2)}</span>` : ""}
     ${p.hearts && full && !opts.more ? `<span class="hc">${ic("heart", 14, 2.2)}${p.hearts}</span>` : ""}
     ${opts.more ? `<span class="more" dir="ltr">+${opts.more}</span>` : ""}
+    ${p.early && !opts.more ? `<span class="early">אליכם</span>` : ""}
   </button>`;
 }
 const sharedList = () => S.st.photos.filter(p => p.mode === "full" && p.vis !== "secret").sort((a, b) => ms(a.created_at) - ms(b.created_at));
@@ -856,7 +874,7 @@ function vAlbum() {
   if (S.albumTab === "ours") {
     body = ours.length ? `<div class="album-meta"><span>${rv ? `רק מה שסומן כסוד נשאר בתוך ${teamLabel(side)}` : `רק ${teamLabel(side)} רואה את אלה עד החשיפה`}</span></div>
       <div class="grid">${ours.map(p => tileHtml(p)).join("")}</div>
-      <div class="legend"><span>${ic("lock", 14)}נחשף בחופה</span><span>${ic("eye", 14)}טיזר מטושטש</span><span>${ic("shield", 14)}סוד לתמיד</span></div>`
+      <div class="legend"><span>${ic("lock", 14)}נחשף בחופה</span><span>${ic("eye", 14)}טיזר מטושטש</span><span>${ic("friends", 14)}למלווים של הצד השני</span><span>${ic("shield", 14)}סוד לתמיד</span></div>`
       : `<div class="empty"><h3>האלבום מחכה לרגע הראשון</h3><p>כל מה שמעלים כאן נשאר בתוך ${teamLabel(side)}. בחשיפה הכל נפתח לצד השני, חוץ ממה שתסמנו כסוד.</p><button class="btn" data-act="pick" style="margin-top:16px">${ic("camera", 20)}צילום או העלאה</button></div>`;
   } else if (S.albumTab === "other") {
     if (rv) body = theirs.length ? `<div class="grid">${theirs.map(p => tileHtml(p)).join("")}</div>` : `<div class="empty"><h3>${teamLabel(other)} עוד לא העלתה תמונות</h3></div>`;
@@ -865,7 +883,7 @@ function vAlbum() {
       const tiles = theirs.map(p => tileHtml(p)).join("") + Array.from({ length: Math.min(n, 30) }, () => tileHtml(null)).join("");
       body = `<div class="veil-card lace" style="margin-bottom:12px"><span class="seal">${ic("lock", 24, 2)}</span><span>
           <h3>נחשף ב-${isFinite(revealMs()) ? hhmm(revealMs()) : "חופה"}</h3>
-          <span class="small muted" style="display:block;margin-top:4px">עוד <b class="num" data-countdown dir="ltr">${fmtLeft(revealMs() - nowMs())}</b>. מה שמטושטש כאן הוא טיזר ש${teamLabel(other)} בחרה לשלוח לכם.</span></span></div>
+          <span class="small muted" style="display:block;margin-top:4px">עוד <b class="num" data-countdown dir="ltr">${fmtLeft(revealMs() - nowMs())}</b>. ${theirs.some(p => p.early) ? `מה שמסומן "אליכם" נשלח רק למלווים. ` : ""}מה שמטושטש הוא טיזר.</span></span></div>
         ${tiles ? `<div class="grid">${tiles}</div>` : `<div class="empty"><h3>עוד כלום מהצד השני</h3><p>כשהם יעלו תמונות, תראו כאן כמה מחכות לכם.</p></div>`}`;
     }
   } else {
@@ -1430,8 +1448,14 @@ function uploadSheet(files, taskId) {
       <div class="lbl">מי יראה</div>
       <div class="opts">
         ${visOpt("team", "lock", rv ? "כולם" : "רק החבורה, עד החשיפה", rv ? "החשיפה כבר קרתה, שני הצדדים יראו" : `${teamLabel(otherSide())} תראה בחופה, ב-${hhmm(revealMs())}`)}
-        ${!rv ? visOpt("teaser", "eye", "טיזר לצד השני", "הם רואים גרסה מטושטשת עכשיו, ואת החדה בחשיפה") : ""}
-        ${visOpt("secret", "shield", "סוד של החבורה", "לא נחשף לעולם, נשאר רק אצלנו")}
+        <details class="more-opts">
+          <summary>עוד אפשרויות</summary>
+          <div class="opts" style="margin-top:8px">
+            ${!rv ? visOpt("escorts", "friends", "למלווים של הצד השני", `המלווים של ${esc(coupleName(otherSide()))} רואים עכשיו. ${esc(coupleName(otherSide()))} ${otherSide() === "bride" ? "עצמה" : "עצמו"} רק בחשיפה`) : ""}
+            ${!rv ? visOpt("teaser", "eye", "טיזר לצד השני", "כולם שם רואים גרסה מטושטשת עכשיו, ואת החדה בחשיפה") : ""}
+            ${visOpt("secret", "shield", "סוד של החבורה", "לא נחשף לעולם, נשאר רק אצלנו")}
+          </div>
+        </details>
       </div>
       <button class="btn block" id="up-go">${ic("check", 20, 2)}העלאה</button>
       <p class="small muted" style="text-align:center">ההעלאה ממשיכה ברקע. אפשר לסגור ולהמשיך להשתמש באפליקציה.</p>` : ""}
@@ -1611,15 +1635,14 @@ function refreshLightbox(newImage) {
       <span class="small num" dir="ltr" style="color:#B8A9B4">${n > 1 ? `${i + 1} / ${n}` : ""}</span>
       <span class="tag ${p.team}">${teamLabel(p.team)}</span>`;
   const info = `
+      ${ours && S.lb.visOpen ? `<div class="vis-row">${(isRevealed() ? ["team", "secret"] : ["team", "escorts", "teaser", "secret"]).map(v => `<button data-lb="vis" data-v="${v}" aria-pressed="${p.vis === v}">${VIS_LABEL(v)}</button>`).join("")}</div>` : ""}
+      ${p.early ? `<div class="lb-meta">${ic("friends", 14)} נשלח רק למלווים. ${esc(coupleName(mySide()))} ${mySide() === "bride" ? "תראה" : "יראה"} את זה בחשיפה</div>` : ""}
       ${!full ? `<div class="lb-cap">טיזר מ${teamLabel(p.team)}. ${vid ? "הסרטון" : "התמונה"} נחשף במלואו ב-${hhmm(revealMs())}</div>` : ""}
       ${p.caption ? `<div class="lb-cap">${esc(p.caption)}</div>` : ""}
       <div class="lb-meta">${full ? `${esc(nameOf(p.member_id))} · ` : ""}${ago(ms(p.created_at))}</div>
       <div class="lb-actions">
         ${full ? `<button class="heart" data-lb="heart" aria-pressed="${!!p.hearted}">${ic("heart", 18, 2)}${p.hearts || ""}</button>` : ""}
-        ${ours ? `<div class="seg grow" role="group" aria-label="מי רואה">
-          <button data-lb="vis" data-v="team" aria-pressed="${p.vis === "team"}">${isRevealed() ? "גלוי" : "לחבורה"}</button>
-          ${!isRevealed() ? `<button data-lb="vis" data-v="teaser" aria-pressed="${p.vis === "teaser"}">טיזר</button>` : ""}
-          <button data-lb="vis" data-v="secret" aria-pressed="${p.vis === "secret"}">סוד</button></div>` : ""}
+        ${ours ? `<button class="vis-btn grow" data-lb="vis-open" aria-expanded="${!!S.lb.visOpen}">${ic(p.vis === "teaser" ? "eye" : p.vis === "secret" ? "shield" : p.vis === "escorts" ? "friends" : "lock", 16, 2)}<span>${VIS_LABEL(p.vis)}</span>${ic(S.lb.visOpen ? "chevR" : "chevL", 14, 2)}</button>` : ""}
         ${p.member_id === ME().id ? `<button class="del" data-lb="del">${S.lb.confirmDel ? "בטוחים? לחצו שוב" : "מחיקה"}</button>` : ""}
       </div>`;
   if (!newImage && $(".lb-stage", el) && el.dataset.pid === p.id) {
@@ -1653,7 +1676,14 @@ document.addEventListener("click", async e => {
   if (k === "next") return lbStep(1);
   if (!p) return;
   if (k === "heart") return mutate(() => rpc("toggle_heart", { p_token: S.token, p_photo: p.id }));
-  if (k === "vis") { const v = b.dataset.v; if (v !== p.vis) await mutate(() => rpc("set_photo_vis", { p_token: S.token, p_id: p.id, p_vis: v }), v === "teaser" ? "נשלח כטיזר" : v === "secret" ? "נשמר כסוד של החבורה" : "נשמר"); return; }
+  if (k === "vis-open") { S.lb.visOpen = !S.lb.visOpen; refreshLightbox(); return; }
+  if (k === "vis") {
+    const v = b.dataset.v; S.lb.visOpen = false;
+    if (v === p.vis) { refreshLightbox(); return; }
+    await mutate(() => rpc("set_photo_vis", { p_token: S.token, p_id: p.id, p_vis: v }),
+      v === "teaser" ? "נשלח כטיזר" : v === "secret" ? "נשמר כסוד של החבורה" : v === "escorts" ? `נשלח למלווים של ${coupleName(otherSide())}` : "נשמר");
+    return;
+  }
   if (k === "del") {
     if (!S.lb.confirmDel) { S.lb.confirmDel = true; refreshLightbox(); setTimeout(() => { if (S.lb && S.lb.confirmDel) { S.lb.confirmDel = false; refreshLightbox(); } }, 4000); return; }
     const pid = p.id;
