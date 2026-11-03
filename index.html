@@ -627,7 +627,9 @@ function ago(t) {
   return new Date(t).toLocaleDateString("he-IL");
 }
 const localDate = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const inviteUrl = code => `${location.origin}${location.pathname}?code=${code}`;
+const SITE_URL = "https://shlomigu.github.io/shnei-tzdadim/";
+const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const inviteUrl = code => `${IS_NATIVE ? SITE_URL : location.origin + location.pathname}?code=${code}`;
 
 /* ============ rings ============ */
 function ringsSvg(p) {
@@ -1663,7 +1665,16 @@ function downloadFile(file) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
 }
+async function nativeShare(file) {
+  const { Filesystem, Share } = window.Capacitor.Plugins;
+  const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = rej; fr.readAsDataURL(file); });
+  const w = await Filesystem.writeFile({ path: file.name, data, directory: "CACHE" });
+  try { await Share.share({ files: [w.uri] }); return "shared"; } catch (e) { return /cancel/i.test(String(e && e.message)) ? "cancelled" : "shared"; }
+}
 async function shareOrDownload(file) {
+  if (IS_NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins.Share && window.Capacitor.Plugins.Filesystem) {
+    try { return await nativeShare(file); } catch (e) { console.warn(e); }
+  }
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file] }); return "shared"; }
     catch (e) { if (e && e.name === "AbortError") return "cancelled"; if (e && e.name === "NotAllowedError") return "need-tap"; }
