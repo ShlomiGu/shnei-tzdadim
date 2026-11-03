@@ -413,6 +413,13 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .show img.on{opacity:1}
 .show-cap{position:absolute;left:0;right:0;bottom:calc(24px + env(safe-area-inset-bottom,0px));text-align:center;color:#fff;font-size:18px;font-weight:500;text-shadow:0 2px 10px rgb(0 0 0 / .7);padding:0 24px}
 .show-x{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:12px;color:#fff;background:rgb(255 255 255 / .12)}
+.recap-card{display:flex;align-items:center;gap:14px;width:100%;text-align:start;padding:16px;border-radius:var(--r);color:#F6EEF2;
+  background:radial-gradient(120% 140% at 85% 10%,#3A2A3F 0%,#1C1420 70%);box-shadow:var(--shadow)}
+.recap-card b{display:block;font-family:var(--f-display);font-weight:500;font-size:21px}
+.recap-card span span,.recap-card .grow span{font-size:13.5px;color:#CDBFCA}
+.recap-ic{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;flex:none;background:linear-gradient(135deg,#E2C27A,#B08A3A);color:#2A1F08}
+.recap-prev{display:grid;place-items:center}
+.recap-prev canvas{width:180px;height:320px;border-radius:18px;background:#120D14;box-shadow:0 10px 30px rgb(0 0 0 / .25)}
 /* media */
 .tile{background-size:cover;background-position:center}
 .tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
@@ -862,6 +869,7 @@ function vHome() {
       <div class="hero-you" style="text-align:center;margin-top:10px">${ME().role === "couple" ? (side === "groom" ? "החתן בכבודו" : "הכלה בכבודה") + " · " : ""}<b>${teamLabel(side)}</b> · ${memberCount} ${memberCount === 1 ? "חבר" : "חברים"}${myOpen ? ` · <a class="link" href="#tasks">${myOpen} משימות עליכם</a>` : ""}</div>
     </section>
 
+${rv && recapPool().length >= 3 ? `<button class="recap-card" data-act="recap"><span class="recap-ic">${ic("play", 26)}</span><span class="grow"><b>סרטון הסיכום של החתונה</b><span>${Math.min(RECAP_MAX, recapPool().length)} רגעים עם מוזיקה, מוכן לוואטסאפ ולסטורי</span></span>${ic("chevL", 20)}</button>` : ""}
     ${!rv ? `<button class="veil-card lace" data-nav="album" data-tab="other">
       <span class="seal">${ic("lock", 24, 2)}</span>
       <span style="min-width:0">
@@ -920,6 +928,8 @@ function vHomeGuest() {
       <div class="row" style="margin-top:12px"><button class="btn grow" data-act="pick">${ic("camera", 20)}צלמו ושתפו</button>${shown.length ? `<a class="btn ghost" href="#album">${ic("album", 20)}אלבום</a>` : ""}</div>
       <p class="small muted" style="text-align:center;margin-top:10px">${rv ? "כל מה שעולה כאן נכנס לאלבום של הזוג" : "התמונות שלכם נשמרות לזוג. הם יראו אותן אחרי החופה"}</p>
     </section>
+    ${rv && recapPool().length >= 3 ? `<button class="recap-card" data-act="recap"><span class="recap-ic">${ic("play", 26)}</span><span class="grow"><b>סרטון הסיכום של החתונה</b><span>${Math.min(RECAP_MAX, recapPool().length)} רגעים עם מוזיקה, מוכן לוואטסאפ ולסטורי</span></span>${ic("chevL", 20)}</button>` : ""}
+
     ${!rv ? statusRow(true) : ""}
     ${(cur || nxt) ? `<a class="nn" href="#schedule">
       <div class="now"><div class="k">עכשיו</div>${cur ? `<div class="t">${esc(cur.t)}</div><div class="n">${esc(cur.title)}</div>` : `<div class="n muted" style="margin-top:6px">עוד לא התחלנו</div>`}</div>
@@ -937,6 +947,169 @@ function vAlbumGuest() {
     ${rv ? `<div class="seg" role="group" style="margin-bottom:14px"><button data-act="album-tab" data-tab="all" aria-pressed="${S.albumTab === "all"}">כל החתונה · ${all.length}</button><button data-act="album-tab" data-tab="guest" aria-pressed="${S.albumTab === "guest"}">האורחים · ${mine.length}</button></div>` : ""}
     ${list.length ? `<div class="grid">${(S.albumTab === "guest" ? list : list).map(p => tileHtml(p, { ribbon: rv && S.albumTab === "all" })).join("")}</div>`
       : `<div class="empty"><h3>עוד אין כאן תמונות</h3><p>צלמו את הרגעים שלכם מהחתונה. הזוג יקבל את כולן.</p><button class="btn" data-act="pick" style="margin-top:16px">${ic("camera", 20)}צילום או העלאה</button></div>`}`;
+}
+
+/* ============ recap video ============ */
+const RECAP_MAX = 24;
+function recapPool() { return (isGuest() ? guestFeed() : sharedList()).filter(p => p.mode === "full" && p.kind !== "video" && p.path); }
+function recapPick() {
+  // the most-loved photos, spread across the day, then shown in the order they happened
+  const all = recapPool().slice().sort((a, b) => ms(a.created_at) - ms(b.created_at));
+  if (all.length <= RECAP_MAX) return all;
+  const buckets = Array.from({ length: RECAP_MAX }, () => []);
+  all.forEach((p, i) => buckets[Math.floor(i * RECAP_MAX / all.length)].push(p));
+  return buckets.map(b => b.slice().sort((x, y) => (y.hearts || 0) - (x.hearts || 0))[0]).filter(Boolean);
+}
+async function loadForCanvas(url) {
+  const r = await fetch(url, { mode: "cors" }); if (!r.ok) throw new Error("img");
+  const b = await r.blob();
+  try { return await createImageBitmap(b); } catch { const im = new Image(); im.src = URL.createObjectURL(b); await im.decode(); return im; }
+}
+function recapMusic(ac, dest, total) {
+  // original music generated on the device: warm pad + gentle arpeggio, D major, I–V–vi–IV
+  const t0 = ac.currentTime + .15, bar = 60 / 84 * 4;
+  const master = ac.createGain(); master.gain.value = 0; master.connect(dest);
+  master.gain.setValueAtTime(0, t0); master.gain.linearRampToValueAtTime(.9, t0 + 2.5);
+  master.gain.setValueAtTime(.9, t0 + total - 3.5); master.gain.linearRampToValueAtTime(0, t0 + total);
+  const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2200; lp.Q.value = .4; lp.connect(master);
+  const verb = ac.createDelay(1); verb.delayTime.value = .23; const fb = ac.createGain(); fb.gain.value = .32;
+  verb.connect(fb); fb.connect(verb); verb.connect(lp);
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const chords = [[50, 57, 62, 66, 69], [45, 57, 61, 64, 69], [47, 59, 62, 66, 71], [43, 55, 59, 62, 67]]; // D A Bm G
+  const tone = (f, at, dur, type, vol, atk, rel) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.value = f; o.detune.value = (Math.random() - .5) * 8;
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol, at + atk); g.gain.setTargetAtTime(0, at + dur - rel, rel / 3);
+    o.connect(g); g.connect(lp); g.connect(verb); o.start(at); o.stop(at + dur + rel);
+  };
+  for (let t = 0, i = 0; t < total; t += bar, i++) {
+    const c = chords[i % 4], at = t0 + t;
+    tone(hz(c[0] - 12), at, bar, "sine", .16, .6, .9);
+    c.slice(1, 4).forEach(n => tone(hz(n), at, bar, "triangle", .035, .9, 1.1));
+    const arp = [c[1], c[2], c[3], c[4], c[3], c[2], c[4] + 12, c[3]];
+    arp.forEach((n, k) => tone(hz(n + 12), at + k * bar / 8, bar / 8 * 1.6, "sine", .045, .01, .35));
+  }
+  return master;
+}
+function recapSheet() {
+  const pick = recapPick();
+  if (pick.length < 3) return toast("צריך לפחות 3 תמונות לסרטון", "album");
+  openSheet("סרטון הסיכום", `<div class="stack">
+    <div class="recap-prev"><canvas id="rc-cv" width="270" height="480"></canvas></div>
+    <p class="small muted" id="rc-info">${pick.length} רגעים, הכי אהובים מכל שלבי היום, עם מוזיקה מקורית. בערך ${Math.round(pick.length * 2.6 + 7)} שניות. ההכנה לוקחת בערך כמו אורך הסרטון, השאירו את המסך פתוח.</p>
+    <div class="progress" id="rc-prog" hidden><i style="width:0"></i></div>
+    <button class="btn block gold" id="rc-go">${ic("sparkle", 20)}יוצרים את הסרטון</button>
+  </div>`, sh => {
+    const go = $("#rc-go", sh);
+    go.onclick = async () => {
+      if (go.dataset.file) { const r = await shareOrDownload(RECAP_FILE); if (r === "downloaded") toast("הסרטון ירד", "check"); return; }
+      go.disabled = true; go.innerHTML = `<span class="spin"></span>מכינים…`;
+      $("#rc-prog", sh).hidden = false;
+      try {
+        RECAP_FILE = await makeRecap(pick, $("#rc-cv", sh), p => { const b = $("#rc-prog i", sh); if (b) b.style.width = Math.round(p * 100) + "%"; });
+        go.dataset.file = "1"; go.disabled = false; go.innerHTML = `${ic("save", 20)}שמירה ושיתוף`;
+        $("#rc-info", sh).textContent = "מוכן! שמרו לגלריה או שתפו ישר לוואטסאפ.";
+      } catch (e) {
+        console.warn(e); go.disabled = false; go.innerHTML = `${ic("sparkle", 20)}נסו שוב`;
+        toast(e && e.code === "too_big" ? "הטלפון הזה לא תומך ביצירת וידאו. נסו מטלפון אחר" : "לא הצלחנו ליצור את הסרטון. נסו שוב", "x");
+      }
+    };
+  });
+}
+let RECAP_FILE = null;
+async function makeRecap(pick, preview, onProg) {
+  if (!canCompress()) throw new ApiError("too_big");
+  const Wd = 1080, Ht = 1920, SLIDE = 2.6, FADE = .7, INTRO = 3.2, OUTRO = 3.4;
+  const total = INTRO + pick.length * SLIDE + OUTRO;
+  let ac = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); await ac.resume(); } catch { ac = null; }
+  const imgs = [];
+  for (let i = 0; i < pick.length; i++) { try { imgs.push(await loadForCanvas(pub(pick[i].path))); } catch { imgs.push(null); } onProg(i / pick.length * .12); }
+  const cv = document.createElement("canvas"); cv.width = Wd; cv.height = Ht;
+  const x = cv.getContext("2d", { alpha: false }); const pv = preview && preview.getContext("2d");
+  await document.fonts.ready;
+  const cs = getComputedStyle(document.documentElement);
+  const gold = "#C9A65A", groomC = "#2E7F83", brideC = "#C2557A";
+  const names = `${coupleName("groom")} & ${coupleName("bride")}`;
+  const dateStr = fmtDate(W().date);
+  const cover = (im, z, ox, oy, alpha) => {
+    if (!im) return;
+    const iw = im.width, ih = im.height, s = Math.max(Wd / iw, Ht / ih) * z;
+    const w = iw * s, h = ih * s;
+    x.globalAlpha = alpha; x.drawImage(im, (Wd - w) / 2 + ox, (Ht - h) / 2 + oy, w, h); x.globalAlpha = 1;
+  };
+  const rings = (cx, cy, r, a) => {
+    x.globalAlpha = a; x.lineWidth = r * .16;
+    x.strokeStyle = brideC; x.beginPath(); x.arc(cx - r * .42, cy, r, 0, Math.PI * 2); x.stroke();
+    x.strokeStyle = groomC; x.beginPath(); x.arc(cx + r * .42, cy, r, 0, Math.PI * 2); x.stroke();
+    x.fillStyle = gold; x.beginPath(); x.moveTo(cx - r * .42, cy - r - r * .32); x.lineTo(cx - r * .42 + r * .2, cy - r - r * .1); x.lineTo(cx - r * .42, cy - r + r * .14); x.lineTo(cx - r * .42 - r * .2, cy - r - r * .1); x.fill();
+    x.globalAlpha = 1;
+  };
+  const title = (t, size, y, color, a, font = "Frank Ruhl Libre") => {
+    x.globalAlpha = a; x.fillStyle = color; x.textAlign = "center"; x.direction = "rtl";
+    x.font = `500 ${size}px "${font}", serif`; x.shadowColor = "rgba(0,0,0,.35)"; x.shadowBlur = size * .25;
+    x.fillText(t, Wd / 2, y); x.shadowBlur = 0; x.globalAlpha = 1;
+  };
+  const ease = t => t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t);
+  const frame = t => {
+    x.fillStyle = "#120D14"; x.fillRect(0, 0, Wd, Ht);
+    const k = (t - INTRO) / SLIDE, i = Math.floor(k);
+    for (const j of [i - 1, i]) {
+      if (j < 0 || j >= imgs.length) continue;
+      const local = t - INTRO - j * SLIDE;                         // seconds into slide j
+      const a = j === i ? ease(local / FADE) : 1;
+      const dir = j % 2 ? 1 : -1, z = 1.04 + .08 * Math.min(1.3, (local + FADE) / (SLIDE + FADE));
+      cover(imgs[j], z, dir * 18 * local, -10 * local, a);
+    }
+    // soft vignette so text always reads
+    const g = x.createLinearGradient(0, Ht * .62, 0, Ht); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.55)"); x.fillStyle = g; x.fillRect(0, Ht * .62, Wd, Ht * .38);
+    if (i >= 0 && i < pick.length) {
+      const p = pick[i], local = t - INTRO - i * SLIDE, a = ease((local - .3) / .5) * (1 - ease((local - SLIDE + .4) / .4));
+      const cap = [p.caption, nameOf(p.member_id)].filter(Boolean).join(" · ");
+      if (cap) title(cap, 46, Ht - 170, "#fff", a, "Rubik");
+    }
+    if (t < INTRO + FADE) {
+      const a = 1 - ease((t - INTRO + .2) / (FADE + .2));
+      x.globalAlpha = a; const bg = x.createLinearGradient(0, 0, 0, Ht); bg.addColorStop(0, "#1D1520"); bg.addColorStop(1, "#120D14"); x.fillStyle = bg; x.fillRect(0, 0, Wd, Ht); x.globalAlpha = 1;
+      const ta = a * ease(t / .9);
+      rings(Wd / 2, Ht * .38, 110, ta);
+      title(names, 128, Ht * .56, "#F6EEF2", ta);
+      title(dateStr, 46, Ht * .62, gold, ta, "Rubik");
+    }
+    const tEnd = INTRO + pick.length * SLIDE;
+    if (t > tEnd - .5) {
+      const a = ease((t - tEnd + .5) / 1.1);
+      x.globalAlpha = a * .92; x.fillStyle = "#120D14"; x.fillRect(0, 0, Wd, Ht); x.globalAlpha = 1;
+      rings(Wd / 2, Ht * .42, 92, a);
+      title(names, 112, Ht * .58, "#F6EEF2", a);
+      title("שני צדדים · " + dateStr, 40, Ht * .64, gold, a, "Rubik");
+    }
+    if (pv) pv.drawImage(cv, 0, 0, preview.width, preview.height);
+  };
+  const stream = cv.captureStream(30);
+  const tracks = [...stream.getVideoTracks()];
+  let dest = null;
+  if (ac) { dest = ac.createMediaStreamDestination(); recapMusic(ac, dest, total); tracks.push(...dest.stream.getAudioTracks()); }
+  const mime = REC_MIMES
+    .find(m => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } });
+  if (!mime) throw new ApiError("too_big");
+  const rec = new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: 6000000, audioBitsPerSecond: 160000 });
+  const chunks = []; rec.ondataavailable = e => e.data && e.data.size && chunks.push(e.data);
+  const stopped = new Promise(r => rec.onstop = r);
+  let wake = null; try { wake = await navigator.wakeLock?.request("screen"); } catch {}
+  frame(0); rec.start(1000);
+  const start = performance.now();
+  await new Promise(res => {
+    const iv = setInterval(() => {
+      const t = (performance.now() - start) / 1000;
+      frame(Math.min(t, total)); onProg(.12 + .88 * Math.min(1, t / total));
+      if (t >= total) { clearInterval(iv); res(); }
+    }, 1000 / 30);
+  });
+  rec.stop(); await stopped;
+  tracks.forEach(t => t.stop()); try { ac && ac.close(); } catch {} try { wake && wake.release(); } catch {}
+  const type = mime.split(";")[0];
+  const d = new Date(W().date + "T12:00:00");
+  return new File([new Blob(chunks, { type })], `${coupleName("groom")}-${coupleName("bride")}-סיכום.${type === "video/webm" ? "webm" : "mp4"}`.replace(/\s+/g, "_"), { type });
 }
 
 /* ============ slideshow (small option) ============ */
@@ -1615,6 +1788,9 @@ const MAX_VIDEO = 50 * 1024 * 1024;
 const DIRECT_MAX = 47 * 1024 * 1024;          // above this a video is compressed on the device first
 const TARGET_BYTES = 44 * 1024 * 1024;        // leave room under the server's 50MB cap
 let AC = null, compLock = Promise.resolve();
+// H.264 first (plays everywhere, saves to every gallery); WebM only when the phone can't record H.264
+const REC_MIMES = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4;codecs=avc1,mp4a", "video/mp4;codecs=h264,aac",
+  "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm", "video/mp4"];
 const canCompress = () => !!(window.MediaRecorder && HTMLCanvasElement.prototype.captureStream);
 // Must run inside the tap: unlocks audio and playback for the videos that will be compressed.
 function prepCompression(files) {
@@ -1658,7 +1834,7 @@ async function doCompress(it) {
   const stream = cv.captureStream(30);
   const tracks = [...stream.getVideoTracks()];
   if (c.dest) tracks.push(...c.dest.stream.getAudioTracks());
-  const mime = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
+  const mime = REC_MIMES
     .find(m => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } });
   if (!mime) throw new ApiError("too_big");
   const rec = new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: vbr, audioBitsPerSecond: 128000 });
@@ -2409,6 +2585,7 @@ document.addEventListener("click", async e => {
     case "ai-go": return aiGo(a.dataset.kind);
     case "status": return statusSheet();
     case "slideshow": return slideshow();
+    case "recap": return recapSheet();
   }
 });
 window.addEventListener("hashchange", () => { if (S.st) setView(isGuest() && !GUEST_VIEWS.includes(location.hash.slice(1)) ? "home" : location.hash.slice(1)); });
