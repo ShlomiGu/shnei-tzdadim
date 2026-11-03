@@ -27,7 +27,7 @@
   --bg:#F6F2F4; --surface:#FFFFFF; --surface-2:#EFE8EC; --ink:#241821; --muted:#776A73; --line:#E6DDE2;
   --gold:#9A7426; --gold-soft:#F4EAD4; --gold-ink:#5F4512;
   --groom:#22686C; --groom-soft:#DCEDEC; --bride:#B2486A; --bride-soft:#F8E1E8;
-  --veil:#EDE5EA; --lace:#D9CDD4; --scrim:rgb(20 12 18 / .55); --glass:rgb(246 242 244 / .82);
+  --veil:#EDE5EA; --lace:#D9CDD4; --ok:#2E7D4F; --ok-soft:#DDF0E3; --scrim:rgb(20 12 18 / .55); --glass:rgb(246 242 244 / .82);
   --shadow:0 1px 2px rgb(36 24 33 / .05), 0 8px 24px rgb(36 24 33 / .07);
   --f-display:"Frank Ruhl Libre","David Libre","Times New Roman",serif;
   --f-body:"Rubik","Assistant","Arial Hebrew",system-ui,-apple-system,sans-serif;
@@ -38,7 +38,7 @@
   --bg:#140F16; --surface:#1E1720; --surface-2:#281F2B; --ink:#F3ECF1; --muted:#A99BA6; --line:#352A37;
   --gold:#D9B568; --gold-soft:#3A2F19; --gold-ink:#F1DCA8;
   --groom:#7CC6C1; --groom-soft:#163234; --bride:#F09DB6; --bride-soft:#3B1C27;
-  --veil:#231A26; --lace:#3A2D3D; --scrim:rgb(0 0 0 / .62); --glass:rgb(20 15 22 / .82);
+  --veil:#231A26; --lace:#3A2D3D; --ok:#7FD3A0; --ok-soft:#173326; --scrim:rgb(0 0 0 / .62); --glass:rgb(20 15 22 / .82);
   --shadow:0 1px 2px rgb(0 0 0 / .3), 0 10px 30px rgb(0 0 0 / .28);
   color-scheme:dark } }
 
@@ -358,6 +358,43 @@ input[type="date"].input,input[type="time"].input{text-align:right}
 .loading .rings .rb{animation-delay:-1.2s}
 @keyframes breathe{50%{opacity:.3}}
 .offline{position:fixed;top:calc(env(safe-area-inset-top,0px) + 62px);left:50%;transform:translateX(-50%);z-index:35;background:var(--ink);color:var(--bg);font-size:13px;font-weight:500;padding:6px 12px;border-radius:999px}
+
+/* media */
+.tile{background-size:cover;background-position:center}
+.tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
+.lb-stage video{max-width:100%;max-height:100%;display:block;background:#000}
+.upq{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 66px);z-index:45;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 10px;border-radius:999px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;box-shadow:0 10px 30px rgb(0 0 0 / .22);white-space:nowrap;animation:up .25s}
+.upq-ring{width:22px;height:22px;border-radius:50%;flex:none;background:conic-gradient(var(--gold) calc(var(--p) * 1%),rgb(127 127 127 / .35) 0);-webkit-mask:radial-gradient(circle,transparent 6px,#000 7px);mask:radial-gradient(circle,transparent 6px,#000 7px)}
+.offline{top:calc(env(safe-area-inset-top,0px) + 110px)}
+.prev-v{display:grid;place-items:center;color:var(--muted);font-size:11px;font-weight:600;gap:2px;align-content:center}
+/* ai */
+.ai-card{background:linear-gradient(135deg,var(--gold-soft),var(--me-soft));border-radius:var(--r);padding:16px;margin-bottom:14px}
+.ai-card b{font-weight:600}
+.ai-card textarea.input{min-height:72px;background:var(--surface);border-color:transparent}
+.ai-card textarea.input:focus{border-color:var(--me)}
+.ai-badge{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--gold);color:#fff;flex:none}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgb(255 255 255 / .35);border-top-color:#fff;animation:rot .8s linear infinite;flex:none}
+@keyframes rot{to{transform:rotate(360deg)}}
+.diff{display:flex;flex-direction:column;gap:6px}
+.diff-row{display:grid;grid-template-columns:auto 50px minmax(0,1fr);gap:10px;align-items:baseline;padding:10px 12px;border-radius:12px;background:var(--surface)}
+.diff-row .dt{font-family:var(--f-display);font-weight:500;font-variant-numeric:tabular-nums}
+.diff-row .dx{overflow-wrap:anywhere;font-size:15px}
+.diff-row .was{display:block;font-size:12.5px;color:var(--muted);text-decoration:line-through}
+.diff-row.del .dx{text-decoration:line-through;color:var(--muted)}
+.dtag{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.dtag.add{background:var(--ok-soft);color:var(--ok)} .dtag.chg{background:var(--gold-soft);color:var(--gold-ink)} .dtag.del{background:var(--bride-soft);color:var(--bride)}
+/* venue picker */
+.vp-row{position:relative}
+.vp-list{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:25;background:var(--surface);border-radius:var(--r-s);box-shadow:0 14px 36px rgb(0 0 0 / .18),0 0 0 1px var(--line);max-height:330px;overflow-y:auto;overscroll-behavior:contain}
+.vp-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:10px 14px;text-align:start;border-top:1px solid var(--line)}
+.vp-item:first-child{border-top:0}
+.vp-item:hover,.vp-item.on{background:var(--surface-2)}
+.vp-n{font-weight:600;font-size:15px}
+.vp-en{font-weight:400;color:var(--muted);font-size:13px;margin:0 8px;unicode-bidi:isolate}
+.vp-c{font-size:12.5px;color:var(--muted)}
+.vp-add{flex-direction:row;align-items:center;gap:8px;color:var(--me);font-weight:600;font-size:14px}
+.venue-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r-s);background:var(--surface-2);margin-bottom:10px}
+.waze{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border-radius:999px;background:#33CCFF;color:#062A36;font-weight:700;font-size:13.5px;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -368,7 +405,7 @@ input[type="date"].input,input[type="time"].input{text-align:right}
     <div class="brand-name" style="font-size:30px;margin-top:10px">שני צדדים</div>
   </div></div>
 </div>
-<input type="file" id="filepick" accept="image/*" multiple hidden>
+<input type="file" id="filepick" accept="image/*,video/*" multiple hidden>
 <div id="toast" aria-live="polite"></div>
 <div class="offline" id="offline" hidden>אין חיבור · מנסים שוב</div>
 
@@ -385,8 +422,8 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad = n => String(n).padStart(2, "0");
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-const BLUR_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
-const PATH_RE = /^[0-9a-f-]{36}\/[A-Za-z0-9_-]+\.jpg$/;
+const BLUR_RE = /^data:image\/(jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+const PATH_RE = /^[0-9a-f-]{36}\/[A-Za-z0-9_-]+\.(jpg|webp|mp4|mov|webm)$/;
 const safeBlur = u => typeof u === "string" && u.length < 8000 && BLUR_RE.test(u) ? u : "";
 const pub = p => PATH_RE.test(p || "") ? `${SUPABASE_URL}/storage/v1/object/public/photos/${p}` : "";
 const store = {
@@ -395,6 +432,7 @@ const store = {
   del(k) { try { localStorage.removeItem("sz." + k); } catch {} }
 };
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
+const fmtDur = d => { d = Math.max(0, Math.round(Number(d) || 0)); return `${Math.floor(d / 60)}:${pad(d % 60)}`; };
 const fmtCode = c => c ? `${c.slice(0, 3)}-${c.slice(3)}` : "";
 
 const I = {
@@ -424,7 +462,9 @@ const I = {
   share:'<path d="M12 15V4M8 7.5 12 3.5l4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1h-1"/>',
   trash:'<path d="M5 7h14M10 7V5h4v2M7 7l1 12.5h8L17 7"/>',
   edit:'<path d="M4.5 19.5h4l10-10a2.8 2.8 0 0 0-4-4l-10 10z"/>',
-  arrowR:'<path d="M5 12h14M13 6l6 6-6 6"/>'
+  arrowR:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+  nav:'<path d="M12 2.8 19.5 21 12 16.8 4.5 21z"/>'
 };
 const ic = (n, s = 22, w = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n] || ""}</svg>`;
 const WA_ICON = '<svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.2a9.7 9.7 0 0 0-8.4 14.6L2.2 21.8l5.1-1.3A9.7 9.7 0 1 0 12 2.2zm0 17.7a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 19.9zm4.4-6c-.2-.1-1.4-.7-1.7-.8-.2-.1-.4-.1-.5.1l-.8 1c-.1.2-.3.2-.5.1a6.6 6.6 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.5-.4h-.5a.9.9 0 0 0-.7.3 2.8 2.8 0 0 0-.9 2.1 4.9 4.9 0 0 0 1 2.6 11.2 11.2 0 0 0 4.3 3.8c1.6.7 2.2.7 3 .6a2.6 2.6 0 0 0 1.7-1.2 2.1 2.1 0 0 0 .1-1.2c0-.1-.2-.2-.4-.3z"/></svg>';
@@ -443,11 +483,49 @@ async function rpc(fn, args = {}) {
   if (!res.ok) throw new ApiError((data && data.message) || ("http_" + res.status));
   return data;
 }
-async function uploadFile(path, blob) {
-  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/photos/${path}`, {
-    method: "POST", headers: { ...AUTH, "Content-Type": "image/jpeg", "Cache-Control": "max-age=31536000", "x-upsert": "false" }, body: blob
+const STORAGE_TUS = SUPABASE_URL.replace(".supabase.co", ".storage.supabase.co") + "/storage/v1/upload/resumable";
+function putFile(path, blob, type, onProg, tries = 3) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", `${SUPABASE_URL}/storage/v1/object/photos/${path}`);
+    for (const [k, v] of Object.entries(AUTH)) x.setRequestHeader(k, v);
+    x.setRequestHeader("Content-Type", type);
+    x.setRequestHeader("Cache-Control", "max-age=31536000");
+    x.setRequestHeader("x-upsert", "false");
+    x.upload.onprogress = e => { if (e.lengthComputable && onProg) onProg(e.loaded / e.total); };
+    const retry = err => { if (tries > 1) setTimeout(() => putFile(path, blob, type, onProg, tries - 1).then(resolve, reject), 1200); else reject(err); };
+    x.onload = () => { if (x.status < 300 || x.status === 409) { onProg && onProg(1); resolve(); } else retry(new ApiError("upload_" + x.status)); };
+    x.onerror = () => retry(new ApiError("network"));
+    x.send(blob);
   });
-  if (!res.ok) throw new ApiError("upload_" + res.status);
+}
+let tusLib = null;
+function loadTus() {
+  if (!tusLib) tusLib = new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/dist/tus.min.js";
+    sc.onload = () => res(window.tus); sc.onerror = () => { tusLib = null; rej(new ApiError("network")); };
+    document.head.appendChild(sc);
+  });
+  return tusLib;
+}
+async function tusUpload(path, file, type, onProg) {
+  const tus = await loadTus();
+  return new Promise((resolve, reject) => {
+    const up = new tus.Upload(file, {
+      endpoint: STORAGE_TUS,
+      retryDelays: [0, 2000, 5000, 10000, 20000],
+      headers: { ...AUTH, "x-upsert": "false" },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      chunkSize: 6 * 1024 * 1024,
+      metadata: { bucketName: "photos", objectName: path, contentType: type, cacheControl: "31536000" },
+      onError: reject,
+      onProgress: (a, b) => onProg && onProg(b ? a / b : 0),
+      onSuccess: () => resolve()
+    });
+    up.findPreviousUploads().then(prev => { if (prev.length) up.resumeFromPreviousUpload(prev[0]); up.start(); }, () => up.start());
+  });
 }
 function setOffline(v) { const el = $("#offline"); if (el) el.hidden = !v; }
 
@@ -625,10 +703,11 @@ function render(scrollTop) {
   }
   $("#side-pill-t").textContent = teamLabel(mySide());
   renderTabs();
-  const draftText = $("#tz-text")?.value;
-  const hadFocus = document.activeElement?.id === "tz-text";
+  const keep = {}; $$("#view [data-keep]").forEach(el => keep[el.id] = el.value);
+  const focusId = document.activeElement && document.activeElement.closest && document.activeElement.closest("#view") ? document.activeElement.id : null;
   $("#view").innerHTML = ({ home: vHome, album: vAlbum, schedule: vSchedule, tasks: vTasks, teasers: vTeasers })[S.view]();
-  if (draftText != null && $("#tz-text")) { $("#tz-text").value = draftText; if (hadFocus) $("#tz-text").focus(); }
+  for (const [id, v] of Object.entries(keep)) { const el = document.getElementById(id); if (el) el.value = v; }
+  if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus({ preventScroll: true });
   if (scrollTop) window.scrollTo({ top: 0 });
 }
 function renderTabs() {
@@ -664,7 +743,7 @@ function vHome() {
 
   return `<div class="stack">
     <section class="hero">
-      <div class="hero-date">${esc(fmtDate(w.date))}${w.venue ? " · " + esc(w.venue) : ""}</div>
+      <div class="hero-date">${esc(fmtDate(w.date))}${w.venue ? " · " + esc(w.venue) + (w.venue_city ? ", " + esc(w.venue_city) : "") : ""}</div>
       <h1 class="names"><span>${esc(coupleName("groom"))}</span><span class="amp">&amp;</span><span>${esc(coupleName("bride"))}</span></h1>
       ${ringsSvg(rv ? 1 : dayProgress())}
       <div class="count">
@@ -727,10 +806,12 @@ function tileHtml(p, opts = {}) {
   if (!p) return `<div class="tile veiled lace"><span class="lockc">${ic("lock", 22, 2)}</span></div>`;
   const full = p.mode === "full";
   const vb = p.team === mySide() ? (p.vis === "teaser" ? "eye" : p.vis === "secret" ? "shield" : "lock") : "";
-  const src = full ? pub(p.thumb_path) : safeBlur(p.blur);
-  return `<button class="tile ${full ? "" : "blur"}" data-act="photo" data-id="${esc(p.id)}" aria-label="${esc(p.caption || "תמונה")}">
+  const blur = safeBlur(p.blur);
+  const src = full ? pub(p.thumb_path) : blur;
+  return `<button class="tile ${full ? "" : "blur"}" data-act="photo" data-id="${esc(p.id)}" aria-label="${esc(p.caption || (p.kind === "video" ? "סרטון" : "תמונה"))}"${full && blur ? ` style="background-image:url('${blur}')"` : ""}>
     ${src ? `<img src="${src}" alt="" loading="lazy" decoding="async">` : ""}
     ${!full ? `<span class="lockc">${ic("eye", 24, 2)}</span>` : ""}
+    ${p.kind === "video" && full ? `<span class="vb">${ic("play", 11)}${p.duration ? fmtDur(p.duration) : ""}</span>` : ""}
     ${opts.ribbon ? `<span class="side-ribbon" style="background:${sideVar(p.team)}"></span>` : ""}
     ${vb && full && !opts.ribbon ? `<span class="b">${ic(vb, 14, 2)}</span>` : ""}
     ${p.hearts && full ? `<span class="hc">${ic("heart", 14, 2.2)}${p.hearts}</span>` : ""}
@@ -773,6 +854,7 @@ function vAlbum() {
 }
 
 /* ============ views: schedule ============ */
+function wazeUrl() { const w = W(); return `https://waze.com/ul?q=${encodeURIComponent([w.venue, w.venue_city].filter(Boolean).join(" "))}&navigate=yes`; }
 function vSchedule() {
   const side = mySide(), now = nowMs();
   let items = schedSorted();
@@ -792,15 +874,252 @@ function vSchedule() {
       </span></button>`);
   }
   const contacts = Array.isArray(W().contacts) ? W().contacts : [];
+  const w = W();
   return `<div class="page-h"><h1 class="page-t">לו״ז</h1><button class="btn sm" data-act="add-sched">${ic("plus", 18)}אירוע</button></div>
+    ${w.venue ? `<div class="venue-card">${ic("pin", 22)}<span class="grow" style="min-width:0"><b style="display:block;font-weight:600">${esc(w.venue)}</b><span class="small muted">${esc(w.venue_city || "")}</span></span><a class="waze" href="${wazeUrl()}" target="_blank" rel="noopener">${ic("nav", 16, 2)}Waze</a></div>` : ""}
+    ${aiCard("sched")}
     <div class="chips" style="margin-bottom:12px"><button class="chip" data-act="sched-filter" data-f="all" aria-pressed="${S.schedFilter === "all"}">כל היום</button><button class="chip" data-act="sched-filter" data-f="ours" aria-pressed="${S.schedFilter === "ours"}">רק ${teamLabel(side)}</button></div>
-    ${items.length ? `<div class="tl">${parts.join("")}</div>` : `<div class="empty"><h3>הלו״ז ריק</h3><p>הוסיפו את רגעי היום, מהבוקר ועד הרחבה.</p></div>`}
+    ${items.length ? `<div class="tl">${parts.join("")}</div>` : `<div class="empty"><h3>הלו״ז ריק</h3><p>כתבו ל-AI למעלה איך היום שלכם נראה, או הוסיפו אירועים ידנית.</p></div>`}
     <section class="card" style="margin-top:18px">
       <div class="card-h"><h2 class="card-t">טלפונים חשובים</h2><button class="link" data-act="settings" data-focus="contacts">עריכה</button></div>
-      ${W().venue ? `<div class="row small" style="margin-bottom:8px">${ic("pin", 18)}<span>${esc(W().venue)}</span></div>` : ""}
-      ${contacts.length ? `<div>${contacts.map((c, i) => `<div class="contact"><div class="who"><b>${esc(c.name)}</b><span class="small muted">${esc(c.role || "")}</span></div><span class="ph">${esc(c.phone || "")}</span>${c.phone ? `<a class="icon-btn" href="tel:${esc(String(c.phone).replace(/[^\d+]/g, ""))}" aria-label="חיוג"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.6 4-2.2 1.4a11 11 0 0 0 6.7 6.7l1.4-2.2 4 1.6V19a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z"/></svg></a>` : ""}</div>`).join("")}</div>`
+      ${contacts.length ? `<div>${contacts.map(c => `<div class="contact"><div class="who"><b>${esc(c.name)}</b><span class="small muted">${esc(c.role || "")}</span></div><span class="ph">${esc(c.phone || "")}</span>${c.phone ? `<a class="icon-btn" href="tel:${esc(String(c.phone).replace(/[^\d+]/g, ""))}" aria-label="חיוג"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.6 4-2.2 1.4a11 11 0 0 0 6.7 6.7l1.4-2.2 4 1.6V19a1.5 1.5 0 0 1-1.6 1.5A16 16 0 0 1 3.5 5.6 1.5 1.5 0 0 1 5 4z"/></svg></a>` : ""}</div>`).join("")}</div>`
         : `<p class="small muted">צלם, רב, אולם, הסעות, מי שמחזיק את הטבעות. הוסיפו בהגדרות והם תמיד יהיו כאן.</p>`}
     </section>`;
+}
+
+/* ============ AI editing ============ */
+function aiCard(kind) {
+  const busy = S.aiBusy && S.aiBusy[kind];
+  const ph = kind === "sched"
+    ? "למשל: החופה זזה ל-20:00, ונוסיף צילומים בחוף גורדון ב-16:30"
+    : "למשל: דני אחראי על הטבעות, ותוסיף משימת צילום של החתן עם אבא שלו";
+  return `<section class="ai-card">
+    <div class="row" style="gap:8px;margin-bottom:10px"><span class="ai-badge">${ic("sparkle", 16, 1.8)}</span><b>${kind === "sched" ? "לעדכן את הלו״ז במילים שלכם" : "לעדכן משימות במילים שלכם"}</b></div>
+    <textarea class="input" id="ai-${kind}" data-keep rows="2" maxlength="1200" placeholder="${ph}"></textarea>
+    <button class="btn block" data-act="ai-go" data-kind="${kind}" style="margin-top:10px" ${busy ? "disabled" : ""}>${busy ? `<span class="spin"></span>חושב על זה…` : `${ic("sparkle", 18)}הצעת שינויים`}</button>
+  </section>`;
+}
+const AI_ERR = {
+  ai_not_configured: "ה-AI עוד לא מחובר לשרת. אפשר בינתיים לערוך ידנית",
+  rate_limited: "הגעתם למכסת הבקשות לשעה. נסו שוב בעוד כמה דקות",
+  bad_input: "הבקשה ארוכה מדי. נסו לקצר",
+  network: ERR.network
+};
+async function aiGo(kind) {
+  const ta = $("#ai-" + kind); const text = (ta && ta.value || "").trim();
+  if (!text) { ta && ta.focus(); return toast("כתבו מה לשנות", "sparkle"); }
+  S.aiBusy = S.aiBusy || {}; S.aiBusy[kind] = true; render();
+  try {
+    let res;
+    try { res = await fetch(`${SUPABASE_URL}/functions/v1/ai-plan`, { method: "POST", headers: { ...AUTH, "Content-Type": "application/json" }, body: JSON.stringify({ token: S.token, kind, text }) }); }
+    catch { throw new ApiError("network"); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(data.error || "ai_failed");
+    aiPreview(kind, data);
+  } catch (e) {
+    if (e.code === "bad_token") return logout();
+    toast(AI_ERR[e.code] || "ה-AI לא הצליח הפעם. נסו לנסח אחרת", "x");
+  } finally { S.aiBusy[kind] = false; render(); }
+}
+function aiPreview(kind, data) {
+  const isS = kind === "sched";
+  const cur = isS ? S.st.sched.filter(x => x.side === "all" || x.side === mySide()) : S.st.tasks.slice();
+  const byId = new Map(cur.map(x => [x.id, x]));
+  const items = Array.isArray(data.items) ? data.items : [];
+  const keys = isS ? ["t", "title", "place", "note", "side"] : ["title", "pts", "mission", "side", "who"];
+  const rows = [];
+  let same = 0;
+  for (const it of items) {
+    const old = it.id && byId.get(it.id);
+    if (!old) { rows.push({ k: "add", it }); continue; }
+    const changed = keys.some(k => k === "who" ? (it.who !== undefined && it.who !== old.who) : String(it[k] ?? "") !== String(old[k] ?? ""));
+    if (changed) rows.push({ k: "chg", it, old }); else same++;
+  }
+  const kept = new Set(items.map(x => x.id).filter(Boolean));
+  cur.filter(x => !kept.has(x.id)).forEach(old => rows.push({ k: "del", it: old }));
+  if (isS) rows.sort((a, b) => String(a.it.t).localeCompare(String(b.it.t)));
+  const label = { add: "חדש", chg: "שינוי", del: "יוסר" };
+  const line = r => {
+    const it = r.it, o = r.old;
+    const lead = isS ? esc(it.t) : `+${Number(it.pts) || 0}`;
+    let was = "";
+    if (r.k === "chg") {
+      const diffs = [];
+      if (isS && o.t !== it.t) diffs.push(o.t);
+      if (o.title !== it.title) diffs.push(esc(o.title));
+      if (!isS && it.who !== undefined && it.who !== o.who) diffs.push(it.who ? `אחראי: ${esc(nameOf(it.who))}` : "בלי אחראי");
+      if (diffs.length) was = `<span class="was">${diffs.join(" · ")}</span>`;
+      if (!isS && it.who !== undefined && it.who !== o.who && it.who) was = `<span class="was" style="text-decoration:none">${o.title !== it.title ? esc(o.title) + " · " : ""}אחראי: ${esc(nameOf(it.who))}</span>`;
+    }
+    return `<div class="diff-row ${r.k}"><span class="dtag ${r.k}">${label[r.k]}</span><span class="dt">${lead}</span><span class="dx">${esc(it.title)}${isS && it.place && r.k !== "del" ? ` <span class="small muted">· ${esc(it.place)}</span>` : ""}${was}</span></div>`;
+  };
+  openSheet(isS ? "הצעה ללו״ז" : "הצעה למשימות", `<div class="stack">
+    ${data.summary ? `<div class="notice">${ic("sparkle", 18)}<span>${esc(data.summary)}</span></div>` : ""}
+    ${rows.length ? `<div class="diff">${rows.map(line).join("")}</div>` : `<p class="muted">אין שינויים להחיל.</p>`}
+    ${same ? `<p class="small muted">${same} פריטים נשארים בלי שינוי.</p>` : ""}
+    ${rows.length ? `<button class="btn block" id="ai-apply">${ic("check", 20, 2)}אישור ועדכון</button>` : ""}
+    <button class="btn line block" data-close>${rows.length ? "ביטול" : "סגירה"}</button>
+  </div>`, sh => {
+    const b = $("#ai-apply", sh);
+    if (b) b.onclick = async () => {
+      b.disabled = true; b.innerHTML = `<span class="spin"></span>מעדכנים…`;
+      let ok;
+      if (isS) {
+        const rv = items.find(x => x.reveal), rms = rv ? itemTime(rv.t) : NaN;
+        ok = await mutate(() => rpc("ai_apply_sched", { p_token: S.token, p_items: items, p_reveal_at: rv && !isNaN(rms) ? new Date(rms).toISOString() : null }), "הלו״ז עודכן");
+      } else {
+        ok = await mutate(() => rpc("ai_apply_tasks", { p_token: S.token, p_items: items }), "המשימות עודכנו");
+      }
+      if (ok) { const ta = $("#ai-" + kind); if (ta) ta.value = ""; closeSheet(); }
+      else { b.disabled = false; b.innerHTML = `${ic("check", 20, 2)}אישור ועדכון`; }
+    };
+  });
+}
+
+/* ============ venue search ============ */
+let VENUES = null;
+function loadVenues() {
+  if (!VENUES) VENUES = (async () => {
+    let list = [];
+    try { const r = await fetch("venues.json"); if (r.ok) list = await r.json(); } catch {}
+    try { const c = await rpc("list_custom_venues"); (c || []).forEach(v => list.push({ he: v.he, city: v.city, custom: true })); } catch {}
+    const seen = new Set();
+    return list.filter(v => v && v.he).filter(v => { const k = vnorm(v.he) + "|" + vnorm(v.city || ""); if (seen.has(k)) return false; seen.add(k); return true; }).map(prepVenue);
+  })();
+  return VENUES;
+}
+const V_STOP = new Set(["אולם", "אולמי", "אולמות", "אירועים", "האירועים", "לאירועים", "event", "events", "hall", "halls", "venue", "the"]);
+const V_FIN = { "ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ" };
+function vnorm(x) {
+  return String(x || "").toLowerCase().normalize("NFKD").replace(/[֑-ׇ̀-ͯ]/g, "")
+    .replace(/["'`׳״\-–—_.,()&!/+]/g, " ").split(/\s+/).filter(w => w && !V_STOP.has(w))
+    .join(" ").replace(/[ךםןףץ]/g, c => V_FIN[c]);
+}
+const V_HE = { "א": "", "ה": "", "ע": "", "ח": "", "ב": "B", "ג": "G", "ד": "D", "ז": "Z", "ט": "T", "כ": "K", "ל": "L", "מ": "M", "נ": "N", "ס": "S", "פ": "P", "צ": "C", "ק": "K", "ר": "R", "ש": "S", "ת": "T" };
+const V_LA = { b: "B", v: "B", w: "B", f: "P", p: "P", c: "K", k: "K", q: "K", g: "G", j: "G", d: "D", z: "Z", s: "S", t: "T", l: "L", m: "M", n: "N", r: "R" };
+function heSkel(w) {
+  let r = "";
+  for (let i = 0; i < w.length; i++) {
+    const c = w[i], nx = w[i + 1];
+    if (c === "ו") { if (i === 0 || nx === "ו") { r += "B"; if (nx === "ו") i++; } continue; }
+    if (c === "י") { if (i === 0 || nx === "י") { r += "Y"; if (nx === "י") i++; } continue; }
+    r += V_HE[c] !== undefined ? V_HE[c] : (/[0-9]/.test(c) ? c : "");
+  }
+  return r;
+}
+function laSkel(w) {
+  w = w.replace(/tch|tz|ts/g, "C").replace(/sch|sh/g, "S").replace(/ch|kh/g, "").replace(/ph/g, "P").replace(/th/g, "T").replace(/ck|qu/g, "K").replace(/c(?=[eiy])/g, "S").replace(/x/g, "KS");
+  let r = "";
+  for (let i = 0; i < w.length; i++) {
+    const c = w[i];
+    if (c >= "A" && c <= "Z") { r += c; continue; }
+    if ("aeiouh".includes(c)) continue;
+    if (c === "y") { if (i === 0) r += "Y"; continue; }
+    r += V_LA[c] || (/[0-9]/.test(c) ? c : "");
+  }
+  return r;
+}
+const vskel = n => n.split(" ").map(w => /[א-ת]/.test(w) ? heSkel(w) : laSkel(w)).join("").replace(/(.)\1+/g, "$1");
+function prepVenue(v) {
+  const names = [v.he, v.en, ...(Array.isArray(v.aliases) ? v.aliases : [])].filter(Boolean);
+  v._k = names.map(nm => { const n = vnorm(nm); return { n, s: vskel(n), w: n.split(" ") }; }).filter(k => k.n);
+  v._c = vnorm(v.city || "");
+  return v;
+}
+function dl(a, b) {
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
+    const c = a[i - 1] === b[j - 1] ? 0 : 1;
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[m][n];
+}
+const V_VOW = /^[אעaeiou]/;
+const SCRIPT = x => /[\u05d0-\u05ea]/.test(x) ? "he" : "la";
+function dice(a, b) {
+  if (a.length < 2 || b.length < 2) return a === b ? 1 : 0;
+  const bg = x => { const m = new Map(); for (let i = 0; i < x.length - 1; i++) { const g = x.slice(i, i + 2); m.set(g, (m.get(g) || 0) + 1); } return m; };
+  const A = bg(a), B = bg(b); let hit = 0;
+  for (const [g, c] of A) hit += Math.min(c, B.get(g) || 0);
+  return 2 * hit / (a.length + b.length - 2);
+}
+function vscore(q, v) {
+  let qn = vnorm(q); if (!qn) return 0;
+  let bonus = 0;
+  // a trailing city word narrows the match ("אמארה תל אביב")
+  if (v._c && qn.includes(" ")) {
+    const ws = qn.split(" ");
+    for (let cut = 1; cut < ws.length; cut++) {
+      const tail = ws.slice(cut).join(" ");
+      if (tail.length >= 2 && v._c.startsWith(tail)) { qn = ws.slice(0, cut).join(" "); bonus = 12; break; }
+    }
+  }
+  const qs = vskel(qn), L = qn.length;
+  let best = 0, tie = 0;
+  for (const k of v._k) {
+    if (k.n === qn) best = Math.max(best, 110);
+    else if (k.n.startsWith(qn)) best = Math.max(best, 100 - Math.min(10, k.n.length - L) * .5);
+    else if (k.w.some(w => w.startsWith(qn))) best = Math.max(best, 88);
+    else if (L >= 3 && k.n.includes(qn)) best = Math.max(best, 80);
+    if (L >= 3) {
+      const tol = L >= 8 ? 2 : L >= 4 ? 1 : 0;
+      const d1 = Math.min(dl(qn, k.n.slice(0, L)), dl(qn, k.n.slice(0, L + 1)), L > 3 ? dl(qn, k.n.slice(0, L - 1)) : 99);
+      if (d1 <= tol) best = Math.max(best, 72 - d1 * 8);
+      if (tol) for (const w of k.w) if (w.length >= 3 && dl(qn, w.slice(0, L)) <= tol) best = Math.max(best, 66);
+    }
+    if (qs.length >= 2 && k.s) {
+      const sv = V_VOW.test(qn) === V_VOW.test(k.n) ? 4 : -4;
+      if (k.s === qs) best = Math.max(best, 74 + sv);
+      else if (k.s.startsWith(qs)) best = Math.max(best, 56 + sv + Math.min(12, qs.length * 3));
+      else if (qs.length >= 4 && dl(qs, k.s.slice(0, qs.length)) <= 1) best = Math.max(best, 51 + sv);
+    }
+    if (best && SCRIPT(qn) === SCRIPT(k.n)) tie = Math.max(tie, dice(qn, k.n.slice(0, L + 2)) * 6);
+  }
+  return best ? best + bonus + tie : 0;
+}
+function attachVenuePicker(input, cityInput) {
+  const row = input.closest(".vp-row") || input.parentElement;
+  const box = document.createElement("div"); box.className = "vp-list"; box.hidden = true; row.appendChild(box);
+  input.setAttribute("autocomplete", "off"); input.setAttribute("role", "combobox"); input.setAttribute("aria-autocomplete", "list");
+  let list = [], sel = -1, seq = 0;
+  const draw = q => {
+    box.innerHTML = list.map((v, i) => `<button type="button" class="vp-item ${i === sel ? "on" : ""}" data-i="${i}">
+        <span class="vp-n">${esc(v.he)}${v.en && !vnorm(v.he).includes(vnorm(v.en)) ? `<span class="vp-en" dir="ltr">${esc(v.en)}</span>` : ""}</span>
+        <span class="vp-c">${esc([v.city, v.type].filter(Boolean).join(" · "))}${v.custom ? " · נוסף על ידי משתמשים" : ""}</span></button>`).join("")
+      + `<button type="button" class="vp-item vp-add" data-add="1">${ic("plus", 16)}<span>${list.length ? `לא ברשימה? להשתמש ב"${esc(q)}"` : `"${esc(q)}" לא ברשימה. להוסיף אותו`}</span></button>`;
+    box.hidden = false;
+  };
+  const search = async () => {
+    const q = input.value.trim(), my = ++seq;
+    if (q.length < 2) { box.hidden = true; return; }
+    const all = await loadVenues(); if (my !== seq) return;
+    list = all.map(v => [vscore(q, v), v]).filter(x => x[0] >= 52).sort((a, b) => b[0] - a[0] || a[1].he.length - b[1].he.length).slice(0, 7).map(x => x[1]);
+    sel = -1; draw(q);
+  };
+  const choose = v => {
+    input.value = v.he; input.dataset.custom = "0";
+    if (cityInput && v.city) cityInput.value = v.city;
+    box.hidden = true;
+  };
+  input.addEventListener("input", () => { input.dataset.custom = "1"; search(); });
+  input.addEventListener("focus", () => { loadVenues(); if (input.value.trim().length >= 2 && input.dataset.custom === "1") search(); });
+  input.addEventListener("keydown", e => {
+    if (box.hidden) return;
+    if (e.key === "ArrowDown") { sel = Math.min(list.length - 1, sel + 1); draw(input.value.trim()); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { sel = Math.max(-1, sel - 1); draw(input.value.trim()); e.preventDefault(); }
+    else if (e.key === "Enter" && sel >= 0) { choose(list[sel]); e.preventDefault(); }
+    else if (e.key === "Escape") box.hidden = true;
+  });
+  box.addEventListener("pointerdown", e => e.preventDefault());
+  box.addEventListener("click", e => {
+    const b = e.target.closest(".vp-item"); if (!b) return;
+    if (b.dataset.add) { input.dataset.custom = "1"; box.hidden = true; if (cityInput && !cityInput.value) cityInput.focus(); return; }
+    choose(list[+b.dataset.i]);
+  });
+  input.addEventListener("blur", () => setTimeout(() => { box.hidden = true; }, 120));
 }
 
 /* ============ views: tasks ============ */
@@ -828,6 +1147,7 @@ function vTasks() {
         </div>
       </div></div>`;
   return `<div class="page-h"><h1 class="page-t">משימות</h1><button class="btn sm" data-act="add-task">${ic("plus", 18)}משימה</button></div>
+    ${aiCard("tasks")}
     <div class="card" style="padding:14px 16px;margin-bottom:12px">
       <div class="row" style="justify-content:space-between;margin-bottom:10px"><span class="eyebrow">${doneCount} מתוך ${total} בוצעו</span><span class="small">${teamLabel(side)} <b class="num">${sc[side]}</b> · <span class="muted">${teamLabel(otherSide())} <b class="num">${sc[otherSide()]}</b></span></span></div>
       <div class="progress"><i style="width:${total ? Math.round(doneCount / total * 100) : 0}%"></i></div>
@@ -876,7 +1196,7 @@ function vTeasers() {
       <div class="chips">${chips.map(c => `<button class="chip" data-act="tz-chip">${esc(c)}</button>`).join("")}</div>
       <div class="row">
         <button class="attach" data-act="tz-attach" aria-label="צירוף תמונה מטושטשת">${ic("album", 22)}${sel.length ? `<b>${sel.length}</b>` : ""}</button>
-        <input class="input grow" id="tz-text" maxlength="200" placeholder="טיזר ל${teamLabel(otherSide())}…" autocomplete="off" enterkeyhint="send">
+        <input class="input grow" id="tz-text" data-keep maxlength="200" placeholder="טיזר ל${teamLabel(otherSide())}…" autocomplete="off" enterkeyhint="send">
         <button class="send" data-act="tz-send" aria-label="שליחה">${ic("send", 21, 1.9)}</button>
       </div>
     </div>`;
@@ -955,8 +1275,9 @@ function renderCreate() {
           <div class="field grow"><label for="cr-bride">שם הכלה</label><input class="input" id="cr-bride" required maxlength="30"></div></div>
         <div class="row"><div class="field grow"><label for="cr-date">תאריך</label><input class="input" type="date" id="cr-date" required value="${localDate()}"></div>
           <div class="field" style="width:40%"><label for="cr-time">שעת החופה</label><input class="input" type="time" id="cr-time" required value="19:30"></div></div>
-        <div class="field"><label for="cr-venue">איפה</label><input class="input" id="cr-venue" maxlength="60" placeholder="שם האולם או הגן"></div>
-        <label class="switch" for="cr-tpl"><span><b>לו״ז ומשימות מוכנים</b><span class="small muted">יום חתונה טיפוסי סביב שעת החופה. הכל ניתן לעריכה.</span></span><input type="checkbox" id="cr-tpl" checked></label>
+        <div class="row vp-row"><div class="field grow"><label for="cr-venue">אולם / מקום</label><input class="input" id="cr-venue" maxlength="80" placeholder="התחילו להקליד, למשל אמארה"></div>
+          <div class="field" style="width:34%"><label for="cr-city">עיר</label><input class="input" id="cr-city" maxlength="40" autocomplete="off"></div></div>
+        <label class="switch" for="cr-tpl"><span><b>לו״ז ומשימות מוכנים</b><span class="small muted">יום חתונה מלא סביב שעת החופה והאולם. אחר כך אפשר לבקש מה-AI להתאים אותו.</span></span><input type="checkbox" id="cr-tpl" checked></label>
       </div>
       <div class="lbl">אני בצד של</div>
       <div class="side-cards" role="group">
@@ -977,6 +1298,7 @@ function renderCreate() {
     $("#cr-go").disabled = !side;
   };
   ["cr-groom", "cr-bride"].forEach(id => $("#" + id).addEventListener("input", upd));
+  attachVenuePicker($("#cr-venue"), $("#cr-city"));
   $$(".side-card").forEach(x => x.onclick = () => { side = x.dataset.side; upd(); });
   $$("[data-role]").forEach(x => x.onclick = () => { role = x.dataset.role; upd(); });
   $("#cr-form").addEventListener("submit", async e => {
@@ -984,9 +1306,10 @@ function renderCreate() {
     const g = $("#cr-groom").value.trim(), b = $("#cr-bride").value.trim(), date = $("#cr-date").value, time = $("#cr-time").value, name = $("#cr-name").value.trim();
     if (!g || !b || !date || !time || !name) return;
     const btn = $("#cr-go"); btn.disabled = true; btn.textContent = "מקימים…";
-    const r = await act(() => rpc("create_wedding", {
+    const r = await act(() => rpc("create_wedding_v2", {
       p_groom: g, p_bride: b, p_date: date, p_time: time, p_reveal_at: new Date(`${date}T${time}:00`).toISOString(),
-      p_venue: $("#cr-venue").value.trim(), p_team: side, p_role: role, p_name: name, p_template: $("#cr-tpl").checked
+      p_venue: $("#cr-venue").value.trim(), p_venue_city: $("#cr-city").value.trim(), p_venue_custom: $("#cr-venue").dataset.custom === "1",
+      p_team: side, p_role: role, p_name: name, p_template: $("#cr-tpl").checked
     }));
     if (r && r.token) { await onAuthed(r.token); inviteSheet(true); }
     else { btn.disabled = false; btn.innerHTML = `${ic("sparkle", 20)}יוצאים לדרך`; }
@@ -1052,84 +1375,180 @@ async function copyText(t, okMsg) {
   catch { const ta = document.createElement("textarea"); ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); toast(okMsg, "copy"); } catch {} ta.remove(); }
 }
 
-/* upload */
+/* upload: background queue, 3 at a time, thumbnail first so others see it quickly */
 let pendingTask = null;
+const isVideo = f => /^video\//.test(f.type) || /\.(mp4|mov|m4v|webm)$/i.test(f.name);
+const MAX_VIDEO = 50 * 1024 * 1024;
 function pick(taskId) { pendingTask = taskId || null; const fp = $("#filepick"); fp.value = ""; fp.click(); }
 $("#filepick").addEventListener("change", e => {
-  const files = Array.from(e.target.files || []).filter(f => /^image\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name)).slice(0, 20);
+  const files = Array.from(e.target.files || []).filter(f => /^(image|video)\//.test(f.type) || /\.(heic|heif|jpe?g|png|webp|mp4|mov|m4v|webm)$/i.test(f.name)).slice(0, 30);
   if (files.length && S.st) uploadSheet(files, pendingTask);
 });
 function uploadSheet(files, taskId) {
   const rv = isRevealed();
   let vis = "team";
   const task = taskId ? S.st.tasks.find(t => t.id === taskId) : null;
-  const urls = files.map(f => URL.createObjectURL(f));
+  const tooBig = files.filter(f => isVideo(f) && f.size > MAX_VIDEO);
+  const okFiles = files.filter(f => !tooBig.includes(f));
+  const urls = okFiles.map(f => isVideo(f) ? null : URL.createObjectURL(f));
+  const nV = okFiles.filter(isVideo).length, nI = okFiles.length - nV;
+  const title = task ? "משימת צילום" : [nI ? (nI === 1 ? "תמונה אחת" : nI + " תמונות") : "", nV ? (nV === 1 ? "סרטון אחד" : nV + " סרטונים") : ""].filter(Boolean).join(" ו") || "העלאה";
   const visOpt = (k, icon, t, sub) => `<button type="button" class="opt" data-vis="${k}" aria-pressed="${vis === k}"><span class="oi">${ic(icon, 20)}</span><span><b>${t}</b><small>${sub}</small></span></button>`;
-  openSheet(task ? "משימת צילום" : `${files.length === 1 ? "תמונה אחת" : files.length + " תמונות"}`, `
+  openSheet(title, `
     <div class="stack">
       ${task ? `<div class="notice">${ic("star", 18)}<span>${esc(task.title)} · +${Number(task.pts) || 0} נק׳</span></div>` : ""}
-      <div class="previews">${urls.map(u => `<div class="tile"><img src="${u}" alt=""></div>`).join("")}</div>
-      <div class="field"><label for="up-cap">כיתוב</label><input class="input" id="up-cap" maxlength="120" placeholder="מה קורה בתמונה?"></div>
+      ${tooBig.length ? `<div class="notice">${ic("x", 18)}<span>${tooBig.length === 1 ? "סרטון אחד גדול" : tooBig.length + " סרטונים גדולים"} מ-50MB ולא ${tooBig.length === 1 ? "יעלה" : "יעלו"}. קצרו או צלמו ב-1080p.</span></div>` : ""}
+      ${okFiles.length ? `<div class="previews">${okFiles.map((f, i) => urls[i] ? `<div class="tile"><img src="${urls[i]}" alt=""></div>` : `<div class="tile prev-v">${ic("play", 22)}<span dir="ltr">${(f.size / 1048576).toFixed(0)}MB</span></div>`).join("")}</div>
+      <div class="field"><label for="up-cap">כיתוב</label><input class="input" id="up-cap" maxlength="120" placeholder="מה קורה כאן?"></div>
       <div class="lbl">מי יראה</div>
       <div class="opts">
         ${visOpt("team", "lock", rv ? "כולם" : "רק החבורה, עד החשיפה", rv ? "החשיפה כבר קרתה, שני הצדדים יראו" : `${teamLabel(otherSide())} תראה בחופה, ב-${hhmm(revealMs())}`)}
         ${!rv ? visOpt("teaser", "eye", "טיזר לצד השני", "הם רואים גרסה מטושטשת עכשיו, ואת החדה בחשיפה") : ""}
         ${visOpt("secret", "shield", "סוד של החבורה", "לא נחשף לעולם, נשאר רק אצלנו")}
       </div>
-      <div class="progress" id="up-prog" hidden><i style="width:0"></i></div>
       <button class="btn block" id="up-go">${ic("check", 20, 2)}העלאה</button>
+      <p class="small muted" style="text-align:center">ההעלאה ממשיכה ברקע. אפשר לסגור ולהמשיך להשתמש באפליקציה.</p>` : ""}
     </div>`, sh => {
     $$("[data-vis]", sh).forEach(b => b.onclick = () => { vis = b.dataset.vis; $$("[data-vis]", sh).forEach(x => x.setAttribute("aria-pressed", x.dataset.vis === vis)); });
-    $("#up-go", sh).onclick = async () => {
-      const btn = $("#up-go", sh); btn.disabled = true;
-      const prog = $("#up-prog", sh); prog.hidden = false;
+    const go = $("#up-go", sh);
+    if (go) go.onclick = () => {
       const cap = $("#up-cap", sh).value.trim();
-      const ids = [];
-      for (let i = 0; i < files.length; i++) {
-        btn.textContent = `מעלים ${i + 1} מתוך ${files.length}…`;
-        const id = await uploadOne(files[i], cap, vis === "teaser" ? "team" : vis, i === 0 ? taskId : null);
-        if (id) ids.push(id);
-        prog.firstElementChild.style.width = `${Math.round((i + 1) / files.length * 100)}%`;
-      }
-      urls.forEach(u => URL.revokeObjectURL(u));
-      if (ids.length && vis === "teaser") await act(() => rpc("send_teaser", { p_token: S.token, p_body: cap, p_photos: ids.slice(0, 4) }));
+      urls.forEach(u => u && setTimeout(() => URL.revokeObjectURL(u), 60000));
+      enqueue(okFiles, cap, vis, taskId);
       closeSheet();
-      await refresh();
-      if (ids.length) toast(task ? `משימה הושלמה! +${Number(task.pts) || 0}` : ids.length === 1 ? "התמונה עלתה" : `${ids.length} תמונות עלו`, "check");
-      if (ids.length && !task && S.view !== "album") { S.albumTab = "ours"; location.hash = "album"; }
+      if (!task && S.view !== "album") { S.albumTab = "ours"; location.hash = "album"; }
     };
   });
+}
+const UQ = { items: [], active: 0 };
+function enqueue(files, caption, vis, taskId) {
+  const batch = { ids: [], left: files.length, fails: 0, vis, caption, task: taskId ? S.st.tasks.find(t => t.id === taskId) : null };
+  files.forEach((f, i) => UQ.items.push({ f, batch, caption, vis: vis === "teaser" ? "team" : vis, taskId: i === 0 ? taskId : null, state: "wait", prog: 0 }));
+  pumpQueue();
+}
+function pumpQueue() {
+  while (UQ.active < 3) {
+    const it = UQ.items.find(x => x.state === "wait"); if (!it) break;
+    it.state = "run"; UQ.active++;
+    processItem(it).then(id => { it.state = id ? "done" : "fail"; if (id) it.batch.ids.push(id); else it.batch.fails++; })
+      .finally(async () => {
+        UQ.active--; it.batch.left--;
+        if (it.batch.left === 0) await finishBatch(it.batch);
+        pumpQueue();
+      });
+  }
+  renderUQ();
+}
+async function finishBatch(b) {
+  if (b.ids.length && b.vis === "teaser") await act(() => rpc("send_teaser", { p_token: S.token, p_body: b.caption, p_photos: b.ids.slice(0, 4) }));
+  await refresh();
+  if (b.ids.length) toast(b.task ? `משימה הושלמה! +${Number(b.task.pts) || 0}` : b.ids.length === 1 ? "עלה בהצלחה" : `${b.ids.length} פריטים עלו`, "check");
+  if (b.fails) toast(b.fails === 1 ? "פריט אחד לא עלה. בדקו חיבור ונסו שוב" : `${b.fails} פריטים לא עלו. בדקו חיבור ונסו שוב`, "x");
+  if (UQ.items.every(x => x.state === "done" || x.state === "fail")) setTimeout(() => { if (UQ.items.every(x => x.state === "done" || x.state === "fail")) { UQ.items = []; renderUQ(); } }, 2200);
+}
+let uqRaf = 0;
+function renderUQ() {
+  if (uqRaf) return;
+  uqRaf = requestAnimationFrame(() => {
+    uqRaf = 0;
+    let el = $("#upq");
+    const items = UQ.items;
+    if (!items.length) { el && el.remove(); return; }
+    if (!el) { el = document.createElement("div"); el.id = "upq"; el.className = "upq"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+    const total = items.length, done = items.filter(x => x.state === "done").length, fail = items.filter(x => x.state === "fail").length;
+    const prog = items.reduce((a, x) => a + (x.state === "done" || x.state === "fail" ? 1 : x.prog), 0) / total;
+    const running = items.some(x => x.state === "run" || x.state === "wait");
+    el.innerHTML = `<span class="upq-ring" style="--p:${Math.round(prog * 100)}"></span><span>${running ? `מעלה ${Math.min(done + fail + 1, total)} מתוך ${total} · ${Math.round(prog * 100)}%` : fail ? `${done} עלו, ${fail} נכשלו` : "הכל עלה"}</span>`;
+  });
+}
+const setProg = (it, p) => { it.prog = clamp(p, 0, 1); renderUQ(); };
+window.addEventListener("beforeunload", e => { if (UQ.items.some(x => x.state === "run" || x.state === "wait")) { e.preventDefault(); e.returnValue = ""; } });
+let refreshT = 0;
+const refreshSoon = () => { clearTimeout(refreshT); refreshT = setTimeout(refresh, 400); };
+async function processItem(it, attempt = 0) {
+  const base = `${W().id}/${uuid()}`;
+  try { return isVideo(it.f) ? await processVideo(it, base) : await processImage(it, base); }
+  catch (e) {
+    console.warn(e);
+    if (e && e.code === "decode") { toast("קובץ אחד לא נפתח. נסו JPG או PNG", "x"); return null; }
+    if (attempt < 1 && !it.registered) { await new Promise(r => setTimeout(r, 1500)); return processItem(it, attempt + 1); }
+    return it.registered || null;
+  }
+}
+let WEBP = null;
+function webpOK() {
+  if (WEBP === null) { try { const c = document.createElement("canvas"); c.width = c.height = 2; WEBP = c.toDataURL("image/webp").startsWith("data:image/webp"); } catch { WEBP = false; } }
+  return WEBP;
+}
+async function processImage(it, base) {
+  let bmp;
+  try { bmp = await loadBitmap(it.f); } catch { throw new ApiError("decode"); }
+  const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+  const type = webpOK() ? "image/webp" : "image/jpeg", ext = type === "image/webp" ? "webp" : "jpg";
+  const thumb = await toBlob(fit(bmp, 400), type, .72);
+  const full = await toBlob(fit(bmp, 1920), type, type === "image/webp" ? .8 : .82);
+  const blur = fit(bmp, 24).toDataURL("image/jpeg", .5);
+  try { bmp.close && bmp.close(); } catch {}
+  await putFile(`${base}_t.${ext}`, thumb, type, p => setProg(it, p * .15));
+  const id = await rpc("add_media", { p_token: S.token, p_kind: "image", p_path: `${base}.${ext}`, p_thumb: `${base}_t.${ext}`, p_blur: blur, p_w: w, p_h: h, p_duration: null, p_caption: it.caption, p_vis: it.vis, p_task: it.taskId || null });
+  it.registered = id;
+  refreshSoon();
+  await putFile(`${base}.${ext}`, full, type, p => setProg(it, .15 + p * .85));
+  return id;
+}
+function videoPoster(file) {
+  return new Promise(resolve => {
+    const v = document.createElement("video"), url = URL.createObjectURL(file);
+    let finished = false;
+    const end = r => { if (finished) return; finished = true; clearTimeout(timer); URL.revokeObjectURL(url); v.removeAttribute("src"); v.load(); resolve(r); };
+    const timer = setTimeout(() => end(null), 9000);
+    v.muted = true; v.playsInline = true; v.preload = "auto"; v.setAttribute("playsinline", ""); v.setAttribute("muted", "");
+    v.addEventListener("loadedmetadata", () => { try { v.currentTime = Math.min(0.6, (v.duration || 1) / 3); } catch { end(null); } });
+    v.addEventListener("seeked", async () => {
+      try {
+        const type = webpOK() ? "image/webp" : "image/jpeg";
+        const blob = await toBlob(fit(v, 480), type, .74);
+        end({ blob, type, ext: type === "image/webp" ? "webp" : "jpg", blur: fit(v, 24).toDataURL("image/jpeg", .5), w: v.videoWidth, h: v.videoHeight, duration: isFinite(v.duration) ? v.duration : null });
+      } catch { end(null); }
+    }, { once: true });
+    v.addEventListener("error", () => end(null), { once: true });
+    v.src = url; v.load();
+  });
+}
+async function fallbackPoster() {
+  const c = document.createElement("canvas"); c.width = 480; c.height = 480;
+  const x = c.getContext("2d"), g = x.createLinearGradient(0, 0, 480, 480);
+  g.addColorStop(0, "#2a1f2d"); g.addColorStop(1, "#4a3550"); x.fillStyle = g; x.fillRect(0, 0, 480, 480);
+  x.fillStyle = "rgba(255,255,255,.85)"; x.beginPath(); x.moveTo(200, 170); x.lineTo(200, 310); x.lineTo(310, 240); x.closePath(); x.fill();
+  return { blob: await toBlob(c, "image/jpeg", .8), type: "image/jpeg", ext: "jpg", blur: null, w: null, h: null, duration: null };
+}
+async function processVideo(it, base) {
+  const f = it.f;
+  const meta = (await videoPoster(f)) || (await fallbackPoster());
+  let ext = ((f.name.match(/\.(mp4|mov|m4v|webm)$/i) || [])[1] || "").toLowerCase();
+  if (!ext) ext = /webm/.test(f.type) ? "webm" : /quicktime/.test(f.type) ? "mov" : "mp4";
+  if (ext === "m4v") ext = "mp4";
+  const type = ext === "mov" ? "video/quicktime" : ext === "webm" ? "video/webm" : "video/mp4";
+  const vpath = `${base}.${ext}`, tpath = `${base}_t.${meta.ext}`;
+  await putFile(tpath, meta.blob, meta.type, p => setProg(it, p * .04));
+  await tusUpload(vpath, f, type, p => setProg(it, .04 + p * .96));
+  const id = await rpc("add_media", { p_token: S.token, p_kind: "video", p_path: vpath, p_thumb: tpath, p_blur: meta.blur, p_w: meta.w, p_h: meta.h, p_duration: meta.duration, p_caption: it.caption, p_vis: it.vis, p_task: it.taskId || null });
+  it.registered = id;
+  return id;
 }
 async function loadBitmap(file) {
   if (window.createImageBitmap) { try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch {} }
   return new Promise((res, rej) => { const img = new Image(); const u = URL.createObjectURL(file); img.onload = () => res(img); img.onerror = () => rej(new Error("decode")); img.src = u; });
 }
-function fit(bmp, max) {
-  const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
-  const s = Math.min(1, max / Math.max(w, h));
+function fit(src, max) {
+  const w = src.videoWidth || src.width || src.naturalWidth, h = src.videoHeight || src.height || src.naturalHeight;
+  const sc = Math.min(1, max / Math.max(w, h));
   const c = document.createElement("canvas");
-  c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
-  const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(bmp, 0, 0, c.width, c.height);
+  c.width = Math.max(1, Math.round(w * sc)); c.height = Math.max(1, Math.round(h * sc));
+  const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(src, 0, 0, c.width, c.height);
   return c;
 }
-const toBlob = (c, q) => new Promise(r => c.toBlob(r, "image/jpeg", q));
-async function uploadOne(file, caption, vis, taskId) {
-  let bmp;
-  try { bmp = await loadBitmap(file); } catch { toast("לא הצלחנו לפתוח את הקובץ. נסו JPG או PNG", "x"); return null; }
-  const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
-  const id = uuid(), base = `${W().id}/${id}`;
-  try {
-    const full = await toBlob(fit(bmp, 2048), .85);
-    const thumb = await toBlob(fit(bmp, 480), .74);
-    const blur = fit(bmp, 28).toDataURL("image/jpeg", .5);
-    await uploadFile(base + ".jpg", full);
-    await uploadFile(base + "_t.jpg", thumb);
-    const r = await act(() => rpc("add_photo", { p_token: S.token, p_path: base + ".jpg", p_thumb: base + "_t.jpg", p_blur: blur, p_w: w, p_h: h, p_caption: caption, p_vis: vis, p_task: taskId || null }));
-    return r ? r : null;
-  } catch (e) {
-    toast(e.code === "network" ? ERR.network : "ההעלאה נכשלה. נסו שוב", "x"); console.warn(e); return null;
-  } finally { try { bmp.close && bmp.close(); } catch {} }
-}
+const toBlob = (c, type, q) => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new ApiError("encode")), type, q));
 
 /* lightbox */
 function lbList() {
@@ -1158,21 +1577,13 @@ function closeLightbox() { $("#lb")?.remove(); S.lb = null; document.body.style.
 function refreshLightbox(newImage) {
   const el = $("#lb"); if (!el || !S.lb) return;
   const p = photoById(S.lb.id); if (!p) return closeLightbox();
-  const full = p.mode === "full", ours = p.team === mySide();
+  const full = p.mode === "full", ours = p.team === mySide(), vid = p.kind === "video";
   const i = S.lb.list.indexOf(p.id), n = S.lb.list.length;
-  const curSrc = newImage ? null : $(".lb-stage img", el)?.getAttribute("src");
-  const firstSrc = full ? pub(p.thumb_path) : safeBlur(p.blur);
-  el.innerHTML = `
-    <div class="lb-top"><button class="icon-btn" data-lb="close" aria-label="סגירה">${ic("x")}</button>
+  const top = `<button class="icon-btn" data-lb="close" aria-label="סגירה">${ic("x")}</button>
       <span class="small num" dir="ltr" style="color:#B8A9B4">${n > 1 ? `${i + 1} / ${n}` : ""}</span>
-      <span class="tag ${p.team}">${teamLabel(p.team)}</span></div>
-    <div class="lb-stage ${full ? "" : "blur"}">
-      <img alt="${esc(p.caption || "")}" src="${curSrc || firstSrc}">
-      ${i > 0 ? `<button class="lb-nav prev" data-lb="prev" aria-label="הקודמת">${ic("chevR")}</button>` : ""}
-      ${i < n - 1 ? `<button class="lb-nav next" data-lb="next" aria-label="הבאה">${ic("chevL")}</button>` : ""}
-    </div>
-    <div class="lb-info">
-      ${!full ? `<div class="lb-cap">טיזר מ${teamLabel(p.team)}. התמונה החדה נחשפת ב-${hhmm(revealMs())}</div>` : ""}
+      <span class="tag ${p.team}">${teamLabel(p.team)}</span>`;
+  const info = `
+      ${!full ? `<div class="lb-cap">טיזר מ${teamLabel(p.team)}. ${vid ? "הסרטון" : "התמונה"} נחשף במלואו ב-${hhmm(revealMs())}</div>` : ""}
       ${p.caption ? `<div class="lb-cap">${esc(p.caption)}</div>` : ""}
       <div class="lb-meta">${full ? `${esc(nameOf(p.member_id))} · ` : ""}${ago(ms(p.created_at))}</div>
       <div class="lb-actions">
@@ -1182,12 +1593,29 @@ function refreshLightbox(newImage) {
           ${!isRevealed() ? `<button data-lb="vis" data-v="teaser" aria-pressed="${p.vis === "teaser"}">טיזר</button>` : ""}
           <button data-lb="vis" data-v="secret" aria-pressed="${p.vis === "secret"}">סוד</button></div>` : ""}
         ${p.member_id === ME().id ? `<button class="del" data-lb="del">${S.lb.confirmDel ? "בטוחים? לחצו שוב" : "מחיקה"}</button>` : ""}
-      </div>
-    </div>`;
-  if (newImage && full) {
+      </div>`;
+  if (!newImage && $(".lb-stage", el) && el.dataset.pid === p.id) {
+    $(".lb-top", el).innerHTML = top; $(".lb-info", el).innerHTML = info; return;
+  }
+  el.dataset.pid = p.id;
+  const poster = full ? pub(p.thumb_path) : safeBlur(p.blur);
+  const media = vid && full
+    ? `<video src="${pub(p.path)}" poster="${poster}" controls playsinline preload="metadata"></video>`
+    : `<img alt="${esc(p.caption || "")}" src="${poster}">`;
+  el.innerHTML = `
+    <div class="lb-top">${top}</div>
+    <div class="lb-stage ${full ? "" : "blur"}">
+      ${media}
+      ${i > 0 ? `<button class="lb-nav prev" data-lb="prev" aria-label="הקודמת">${ic("chevR")}</button>` : ""}
+      ${i < n - 1 ? `<button class="lb-nav next" data-lb="next" aria-label="הבאה">${ic("chevL")}</button>` : ""}
+    </div>
+    <div class="lb-info">${info}</div>`;
+  if (full && !vid) {
     const pid = p.id, img = $(".lb-stage img", el), big = pub(p.path);
     if (big) { const pre = new Image(); pre.onload = () => { if (S.lb && S.lb.id === pid && img.isConnected) img.src = big; }; pre.src = big; }
   }
+  // warm the cache for the neighbours so swiping feels instant
+  [S.lb.list[i - 1], S.lb.list[i + 1]].forEach(nid => { const q = nid && photoById(nid); if (q && q.mode === "full" && q.kind !== "video") { const im = new Image(); im.src = pub(q.path); } });
 }
 document.addEventListener("click", async e => {
   const b = e.target.closest("[data-lb]"); if (!b || !S.lb) return;
@@ -1350,7 +1778,8 @@ function settingsSheet(focus) {
         <h3 class="card-t">החתונה</h3>
         <div class="row"><div class="field grow"><label for="st-g">החתן</label><input class="input" id="st-g" maxlength="30" value="${esc(w.groom)}"></div><div class="field grow"><label for="st-b">הכלה</label><input class="input" id="st-b" maxlength="30" value="${esc(w.bride)}"></div></div>
         <div class="field"><label for="st-d">תאריך</label><input class="input" type="date" id="st-d" value="${esc(w.date)}"></div>
-        <div class="field"><label for="st-v">מקום</label><input class="input" id="st-v" maxlength="60" value="${esc(w.venue || "")}"></div>
+        <div class="row vp-row"><div class="field grow"><label for="st-v">אולם / מקום</label><input class="input" id="st-v" maxlength="80" value="${esc(w.venue || "")}" data-custom="0"></div>
+          <div class="field" style="width:34%"><label for="st-vc">עיר</label><input class="input" id="st-vc" maxlength="40" value="${esc(w.venue_city || "")}" autocomplete="off"></div></div>
         <div class="field"><label for="st-c">טלפונים חשובים</label><textarea class="input" id="st-c" placeholder="שורה לכל איש קשר: שם | תפקיד | טלפון&#10;דנה | צלמת | 050-0000000">${esc(contacts)}</textarea></div>
         <button class="btn ghost block" id="st-save">שמירה</button>
       </section>
@@ -1364,6 +1793,7 @@ function settingsSheet(focus) {
       </section>
       <p class="small muted" style="text-align:center">${S.st.members.filter(m => m.team === "groom").length} בחבורת החתן · ${S.st.members.filter(m => m.team === "bride").length} בחבורת הכלה</p>
     </div>`, sh => {
+    attachVenuePicker($("#st-v", sh), $("#st-vc", sh));
     if (focus === "contacts") setTimeout(() => { $("#st-c", sh).scrollIntoView({ block: "center" }); $("#st-c", sh).focus(); }, 300);
     $("#st-rsave", sh).onclick = () => { const d = $("#st-rd", sh).value, t = $("#st-rt", sh).value; if (d && t) mutate(() => rpc("update_wedding", { p_token: S.token, p: { reveal_at: new Date(`${d}T${t}:00`).toISOString() } }), "שעת החשיפה עודכנה"); };
     const now = $("#st-now", sh);
@@ -1376,7 +1806,7 @@ function settingsSheet(focus) {
     $("#st-save", sh).onclick = () => {
       const contacts = $("#st-c", sh).value.split("\n").map(l => l.split(/\s*[|,]\s*/)).filter(a => a[0] && a[0].trim()).slice(0, 30)
         .map(a => ({ name: a[0].trim().slice(0, 40), role: (a.length > 2 ? a[1] : "").trim().slice(0, 40), phone: (a.length > 2 ? a[2] : a[1] || "").trim().slice(0, 30) }));
-      mutate(() => rpc("update_wedding", { p_token: S.token, p: { groom: $("#st-g", sh).value, bride: $("#st-b", sh).value, date: $("#st-d", sh).value || null, venue: $("#st-v", sh).value, contacts } }), "נשמר");
+      mutate(() => rpc("update_wedding", { p_token: S.token, p: { groom: $("#st-g", sh).value, bride: $("#st-b", sh).value, date: $("#st-d", sh).value || null, venue: $("#st-v", sh).value, venue_city: $("#st-vc", sh).value, venue_custom: $("#st-v", sh).dataset.custom === "1", contacts } }), "נשמר");
     };
     $$("[data-rr]", sh).forEach(b => b.onclick = () => { role = b.dataset.rr; $$("[data-rr]", sh).forEach(x => x.setAttribute("aria-pressed", x.dataset.rr === role)); });
     $("#st-me", sh).onclick = async () => { if (await mutate(() => rpc("update_me", { p_token: S.token, p_name: $("#st-nick", sh).value, p_role: role }), "נשמר")) closeSheet(); };
@@ -1455,6 +1885,7 @@ document.addEventListener("click", async e => {
     case "react": return mutate(() => rpc("react", { p_token: S.token, p_teaser: id, p_emoji: a.dataset.e }));
     case "write-letter": return writeLetterSheet();
     case "letter": { const l = S.st.letters.find(x => x.id === id); if (l) letterSheet(l); return; }
+    case "ai-go": return aiGo(a.dataset.kind);
   }
 });
 window.addEventListener("hashchange", () => { if (S.st) setView(location.hash.slice(1)); });
