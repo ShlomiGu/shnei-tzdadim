@@ -359,6 +359,27 @@ input[type="date"].input,input[type="time"].input{text-align:right}
 @keyframes breathe{50%{opacity:.3}}
 .offline{position:fixed;top:calc(env(safe-area-inset-top,0px) + 62px);left:50%;transform:translateX(-50%);z-index:35;background:var(--ink);color:var(--bg);font-size:13px;font-weight:500;padding:6px 12px;border-radius:999px}
 
+
+/* photo-first home */
+.hero-c{text-align:center;padding:2px 0 0}
+.hero-c .names{font-size:clamp(34px,10vw,48px)}
+.cd-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:4px;font-size:14px;color:var(--muted);font-weight:500}
+.cd-row b{font-family:var(--f-display);font-weight:500;font-size:26px;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1}
+.cd-row .rings{width:58px;margin:0}
+.cd-row .rings circle{stroke-width:7}
+.moments{padding:14px}
+.moments .card-h{padding:2px 4px 0}
+.mosaic{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;border-radius:16px;overflow:hidden}
+.mosaic .tile:first-child{grid-column:span 2;grid-row:span 2;aspect-ratio:auto}
+.mosaic.n1 .tile:first-child{grid-column:span 3;grid-row:auto;aspect-ratio:4/3}
+.mosaic.n2{grid-template-columns:1fr 1fr}
+.mosaic.n2 .tile:first-child{grid-column:auto;grid-row:auto;aspect-ratio:1}
+.mosaic .more{position:absolute;inset:0;display:grid;place-items:center;background:rgb(20 12 18 / .5);color:#fff;font-family:var(--f-display);font-weight:500;font-size:28px;z-index:2}
+.moments-empty{width:100%;aspect-ratio:16/10;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--me);background:var(--me-soft);box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--me) 25%,transparent)}
+.moments-empty b{font-family:var(--f-display);font-weight:500;font-size:22px;color:var(--ink)}
+.moments-empty span{font-size:13.5px;color:var(--muted)}
+a.nn{color:inherit}
+.toast-act{margin-inline-start:6px;padding:4px 12px;border-radius:999px;background:var(--bg);color:var(--ink);font-weight:700;font-size:13.5px;flex:none}
 /* media */
 .tile{background-size:cover;background-position:center}
 .tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
@@ -494,7 +515,11 @@ function putFile(path, blob, type, onProg, tries = 3) {
     x.setRequestHeader("x-upsert", "false");
     x.upload.onprogress = e => { if (e.lengthComputable && onProg) onProg(e.loaded / e.total); };
     const retry = err => { if (tries > 1) setTimeout(() => putFile(path, blob, type, onProg, tries - 1).then(resolve, reject), 1200); else reject(err); };
-    x.onload = () => { if (x.status < 300 || x.status === 409) { onProg && onProg(1); resolve(); } else retry(new ApiError("upload_" + x.status)); };
+    x.onload = () => {
+      if (x.status < 300 || x.status === 409) { onProg && onProg(1); resolve(); }
+      else if (x.status === 413 || /exceed|quota|limit/i.test(x.responseText || "")) reject(new ApiError("quota"));
+      else retry(new ApiError("upload_" + x.status));
+    };
     x.onerror = () => retry(new ApiError("network"));
     x.send(blob);
   });
@@ -599,12 +624,13 @@ function ringsSvg(p) {
 const brandMark = `<svg class="brand-mark" viewBox="0 0 36 22" aria-hidden="true"><circle cx="22" cy="11" r="8" fill="none" stroke="var(--groom)" stroke-width="2.4"/><circle cx="14" cy="11" r="8" fill="none" stroke="var(--bride)" stroke-width="2.4"/></svg>`;
 
 /* ============ toast ============ */
-function toast(msg, icon = "sparkle") {
+function toast(msg, icon = "sparkle", action) {
   const t = document.createElement("div");
-  t.className = "toast"; t.innerHTML = `${ic(icon, 18)}<span></span>`;
+  t.className = "toast"; t.innerHTML = `${ic(icon, 18)}<span></span>${action ? `<button class="toast-act"></button>` : ""}`;
   t.querySelector("span").textContent = msg;
+  if (action) { const b = t.querySelector(".toast-act"); b.textContent = action.label; b.onclick = () => { t.remove(); action.fn(); }; }
   $("#toast").appendChild(t);
-  setTimeout(() => { t.style.transition = "opacity .3s"; t.style.opacity = "0"; setTimeout(() => t.remove(), 320); }, 3000);
+  setTimeout(() => { t.style.transition = "opacity .3s"; t.style.opacity = "0"; setTimeout(() => t.remove(), 320); }, action ? 7000 : 3000);
 }
 const ERR = {
   bad_code: "הקוד לא נמצא. בדקו שהקלדתם את כל 6 התווים",
@@ -613,7 +639,8 @@ const ERR = {
   network: "אין חיבור לאינטרנט. נסו שוב בעוד רגע",
   couple_only: "רק החתן או הכלה יכולים לכתוב מכתב חתום",
   not_found: "הפריט כבר לא קיים",
-  empty: "כתבו משהו או צרפו תמונה"
+  empty: "כתבו משהו או צרפו תמונה",
+  quota: "האחסון בשרת התמלא. המארגן יכול להגדיל אותו, ובינתיים כדאי להעלות פחות סרטונים"
 };
 async function act(fn, okMsg) {
   try { const r = await fn(); if (okMsg) toast(okMsg, "check"); return r ?? true; }
@@ -734,34 +761,32 @@ function vHome() {
   if (cur && !nxt && now - itemTime(cur.t) > 3 * 3600e3) cur = null;
   const sc = S.st.scores, max = Math.max(sc.groom, sc.bride, 1);
   const leader = sc.groom === sc.bride ? "תיקו. מי ישבור אותו?" : `${teamLabel(sc.groom > sc.bride ? "groom" : "bride")} מובילה ב-${Math.abs(sc.groom - sc.bride)} נק׳`;
-  const ours = S.st.photos.filter(p => p.team === side);
   const hidden = S.st.hidden;
   const teased = S.st.photos.filter(p => p.team === other && p.mode === "blur").length;
   const lastTeasers = S.st.teasers.filter(t => t.team === other).slice(-2).reverse();
   const myOpen = S.st.tasks.filter(t => !t.done && t.who === ME().id).length;
   const memberCount = S.st.members.filter(m => m.team === side).length;
+  // photos first: before the reveal our side's moments, after it the shared album, newest first
+  const feed = rv ? S.st.photos.filter(p => p.mode === "full" && !(p.team === side && p.vis === "secret")) : S.st.photos.filter(p => p.team === side);
+  const n = feed.length, take = n >= 6 ? 6 : n >= 3 ? 3 : n;
+  const shown = feed.slice(0, take);
+  const mosaic = shown.map((p, i) => tileHtml(p, { ribbon: rv, more: i === take - 1 && n > take ? n - take : 0 })).join("");
+  const photosToday = feed.length;
 
   return `<div class="stack">
-    <section class="hero">
+    <section class="hero-c">
       <div class="hero-date">${esc(fmtDate(w.date))}${w.venue ? " · " + esc(w.venue) + (w.venue_city ? ", " + esc(w.venue_city) : "") : ""}</div>
       <h1 class="names"><span>${esc(coupleName("groom"))}</span><span class="amp">&amp;</span><span>${esc(coupleName("bride"))}</span></h1>
-      ${ringsSvg(rv ? 1 : dayProgress())}
-      <div class="count">
-        <div class="count-label">${rv ? "שני הצדדים נפגשו" : "עד החשיפה" + (isFinite(revealMs()) ? ` בשעה ${hhmm(revealMs())}` : "")}</div>
-        <div class="count-num" data-countdown dir="ltr">${rv ? "מזל טוב!" : fmtLeft(revealMs() - now)}</div>
-      </div>
-      <div class="hero-you">${ME().role === "couple" ? (side === "groom" ? "החתן בכבודו" : "הכלה בכבודה") + " · " : ""}<b>${teamLabel(side)}</b> · ${memberCount} ${memberCount === 1 ? "חבר" : "חברים"}${myOpen ? ` · <a class="link" href="#tasks">${myOpen} משימות עליכם</a>` : ""}</div>
+      <div class="cd-row">${ringsSvg(rv ? 1 : dayProgress())}<span>${rv ? "שני הצדדים נפגשו" : "עד החשיפה"}</span><b data-countdown dir="ltr">${rv ? "מזל טוב!" : fmtLeft(revealMs() - now)}</b></div>
     </section>
 
-    ${memberCount < 2 ? `<button class="card" data-act="invite" style="display:flex;gap:14px;align-items:center;text-align:start;width:100%">
-      <span class="seal" style="background:var(--me);box-shadow:none;width:48px;height:48px">${ic("userplus", 22)}</span>
-      <span class="grow"><b style="display:block;font-weight:600">הזמינו את החבורה</b><span class="small muted">הקוד של ${teamLabel(side)}: <b class="num" dir="ltr">${fmtCode(w.my_code)}</b></span></span>${ic("chevL", 20)}
-    </button>` : ""}
-
-    ${(cur || nxt) ? `<section class="nn">
-      <div class="now"><div class="k">עכשיו</div>${cur ? `<div class="t">${esc(cur.t)}</div><div class="n">${esc(cur.title)}</div>` : `<div class="n muted" style="margin-top:6px">עוד לא התחלנו</div>`}</div>
-      <div><div class="k">הבא בתור</div>${nxt ? `<div class="t">${esc(nxt.t)}</div><div class="n">${esc(nxt.title)}</div>` : `<div class="n muted" style="margin-top:6px">זהו, רק לרקוד</div>`}</div>
-    </section>` : ""}
+    <section class="card moments">
+      <div class="card-h"><h2 class="card-t">${rv ? "האלבום המשותף" : "הרגעים שלנו"}</h2>${photosToday ? `<a class="link" href="#album">${photosToday} באלבום</a>` : ""}</div>
+      ${shown.length ? `<div class="mosaic n${take}">${mosaic}</div>`
+        : `<button class="moments-empty" data-act="pick">${ic("camera", 34, 1.5)}<b>התמונה הראשונה של היום</b><span>${rv ? "כל מה שתעלו עכשיו גלוי לשני הצדדים" : `רק ${teamLabel(side)} תראה אותה עד החשיפה`}</span></button>`}
+      <div class="row" style="margin-top:12px"><button class="btn grow" data-act="pick">${ic("camera", 20)}צלמו עכשיו</button>${shown.length ? `<a class="btn ghost" href="#album">${ic("album", 20)}אלבום</a>` : ""}</div>
+      <div class="hero-you" style="text-align:center;margin-top:10px">${ME().role === "couple" ? (side === "groom" ? "החתן בכבודו" : "הכלה בכבודה") + " · " : ""}<b>${teamLabel(side)}</b> · ${memberCount} ${memberCount === 1 ? "חבר" : "חברים"}${myOpen ? ` · <a class="link" href="#tasks">${myOpen} משימות עליכם</a>` : ""}</div>
+    </section>
 
     ${!rv ? `<button class="veil-card lace" data-nav="album" data-tab="other">
       <span class="seal">${ic("lock", 24, 2)}</span>
@@ -769,10 +794,23 @@ function vHome() {
         <h3>${hidden ? `${hidden} תמונות מתחת להינומה` : "הצד השני עוד לא העלה כלום"}</h3>
         <span class="small muted" style="display:block;margin-top:4px">${hidden ? `${teamLabel(other)} מצלמת בלעדיכם. הכל נפתח ברגע החשיפה${teased ? `, ובינתיים יש ${teased} טיזרים מטושטשים` : ""}.` : `ברגע ש${teamLabel(other)} תעלה תמונות, תראו כאן כמה מחכות לכם.`}</span>
       </span>
-    </button>` : `<button class="veil-card" data-nav="album" data-tab="shared" style="background:var(--gold-soft)">
-      <span class="seal">${ic("sparkle", 26, 1.8)}</span>
-      <span><h3>האלבום המשותף פתוח</h3><span class="small muted" style="display:block;margin-top:4px">${sharedList().length} תמונות משני הצדדים, לפי הסדר שבו קרו.</span></span>
-    </button>`}
+    </button>` : ""}
+
+    ${memberCount < 2 ? `<button class="card" data-act="invite" style="display:flex;gap:14px;align-items:center;text-align:start;width:100%">
+      <span class="seal" style="background:var(--me);box-shadow:none;width:46px;height:46px">${ic("userplus", 22)}</span>
+      <span class="grow"><b style="display:block;font-weight:600">הזמינו את החבורה</b><span class="small muted">הקוד של ${teamLabel(side)}: <b class="num" dir="ltr">${fmtCode(w.my_code)}</b></span></span>${ic("chevL", 20)}
+    </button>` : ""}
+
+    <section class="card">
+      <div class="card-h"><h2 class="card-t">טיזרים מהצד השני</h2><a class="link" href="#teasers">לכל הטיזרים</a></div>
+      ${lastTeasers.length ? `<div class="feed">${lastTeasers.map(noteHtml).join("")}</div>` : `<p class="muted small">עוד שקט מ${teamLabel(other)}. אולי תשלחו להם משהו קודם?</p>`}
+      <a class="btn ghost block" href="#teasers" style="margin-top:14px">${ic("send", 18)}טיזר ל${teamLabel(other)}</a>
+    </section>
+
+    ${(cur || nxt) ? `<a class="nn" href="#schedule">
+      <div class="now"><div class="k">עכשיו</div>${cur ? `<div class="t">${esc(cur.t)}</div><div class="n">${esc(cur.title)}</div>` : `<div class="n muted" style="margin-top:6px">עוד לא התחלנו</div>`}</div>
+      <div><div class="k">הבא בתור</div>${nxt ? `<div class="t">${esc(nxt.t)}</div><div class="n">${esc(nxt.title)}</div>` : `<div class="n muted" style="margin-top:6px">זהו, רק לרקוד</div>`}</div>
+    </a>` : `<a class="card" href="#schedule" style="display:flex;align-items:center;gap:12px">${ic("clock", 22)}<span class="grow"><b style="font-weight:600">הלו״ז המלא</b><span class="small muted" style="display:block">${S.st.sched.length} אירועים, טלפונים חשובים</span></span>${ic("chevL", 20)}</a>`}
 
     <section class="card">
       <div class="card-h"><h2 class="card-t">התחרות</h2><a class="link" href="#tasks">למשימות</a></div>
@@ -784,20 +822,6 @@ function vHome() {
         <div class="lead">${esc(leader)}</div>
       </div>
     </section>
-
-    <section class="card">
-      <div class="card-h"><h2 class="card-t">טיזרים מהצד השני</h2><a class="link" href="#teasers">לכל הטיזרים</a></div>
-      ${lastTeasers.length ? `<div class="feed">${lastTeasers.map(noteHtml).join("")}</div>` : `<p class="muted small">עוד שקט מ${teamLabel(other)}. אולי תשלחו להם משהו קודם?</p>`}
-      <a class="btn ghost block" href="#teasers" style="margin-top:14px">${ic("send", 18)}טיזר ל${teamLabel(other)}</a>
-    </section>
-
-    <section class="card">
-      <div class="card-h"><h2 class="card-t">התמונות שלנו</h2>${ours.length ? `<a class="link" href="#album">${ours.length} באלבום</a>` : ""}</div>
-      ${ours.length ? `<div class="strip">${ours.slice(0, 12).map(p => tileHtml(p)).join("")}</div>`
-        : `<p class="muted small" style="margin-bottom:14px">רק ${teamLabel(side)} רואה את מה שמעלים כאן, עד הרגע הגדול.</p><button class="btn block" data-act="pick">${ic("camera", 20)}התמונה הראשונה</button>`}
-    </section>
-
-    <a class="card" href="#schedule" style="display:flex;align-items:center;gap:12px">${ic("clock", 22)}<span class="grow"><b style="font-weight:600">הלו״ז המלא</b><span class="small muted" style="display:block">${S.st.sched.length} אירועים, טלפונים חשובים</span></span>${ic("chevL", 20)}</a>
   </div>`;
 }
 
@@ -814,7 +838,8 @@ function tileHtml(p, opts = {}) {
     ${p.kind === "video" && full ? `<span class="vb">${ic("play", 11)}${p.duration ? fmtDur(p.duration) : ""}</span>` : ""}
     ${opts.ribbon ? `<span class="side-ribbon" style="background:${sideVar(p.team)}"></span>` : ""}
     ${vb && full && !opts.ribbon ? `<span class="b">${ic(vb, 14, 2)}</span>` : ""}
-    ${p.hearts && full ? `<span class="hc">${ic("heart", 14, 2.2)}${p.hearts}</span>` : ""}
+    ${p.hearts && full && !opts.more ? `<span class="hc">${ic("heart", 14, 2.2)}${p.hearts}</span>` : ""}
+    ${opts.more ? `<span class="more" dir="ltr">+${opts.more}</span>` : ""}
   </button>`;
 }
 const sharedList = () => S.st.photos.filter(p => p.mode === "full" && p.vis !== "secret").sort((a, b) => ms(a.created_at) - ms(b.created_at));
@@ -1064,7 +1089,8 @@ function vscore(q, v) {
     else if (k.n.startsWith(qn)) best = Math.max(best, 100 - Math.min(10, k.n.length - L) * .5);
     else if (k.w.some(w => w.startsWith(qn))) best = Math.max(best, 88);
     else if (L >= 3 && k.n.includes(qn)) best = Math.max(best, 80);
-    if (L >= 3) {
+    const near = k.n[0] === qn[0] || (k.s && qs && k.s[0] === qs[0]);
+    if (L >= 3 && near) {
       const tol = L >= 8 ? 2 : L >= 4 ? 1 : 0;
       const d1 = Math.min(dl(qn, k.n.slice(0, L)), dl(qn, k.n.slice(0, L + 1)), L > 3 ? dl(qn, k.n.slice(0, L - 1)) : 99);
       if (d1 <= tol) best = Math.max(best, 72 - d1 * 8);
@@ -1104,7 +1130,8 @@ function attachVenuePicker(input, cityInput) {
     if (cityInput && v.city) cityInput.value = v.city;
     box.hidden = true;
   };
-  input.addEventListener("input", () => { input.dataset.custom = "1"; search(); });
+  let deb = 0;
+  input.addEventListener("input", () => { input.dataset.custom = "1"; clearTimeout(deb); deb = setTimeout(search, 90); });
   input.addEventListener("focus", () => { loadVenues(); if (input.value.trim().length >= 2 && input.dataset.custom === "1") search(); });
   input.addEventListener("keydown", e => {
     if (box.hidden) return;
@@ -1430,7 +1457,7 @@ function pumpQueue() {
   while (UQ.active < 3) {
     const it = UQ.items.find(x => x.state === "wait"); if (!it) break;
     it.state = "run"; UQ.active++;
-    processItem(it).then(id => { it.state = id ? "done" : "fail"; if (id) it.batch.ids.push(id); else it.batch.fails++; })
+    processItem(it).then(id => { it.state = id ? "done" : "fail"; if (id) it.batch.ids.push(id); else it.batch.fails++; }, e => { it.state = "fail"; it.batch.fails++; it.batch.err = e && e.code; })
       .finally(async () => {
         UQ.active--; it.batch.left--;
         if (it.batch.left === 0) await finishBatch(it.batch);
@@ -1443,7 +1470,7 @@ async function finishBatch(b) {
   if (b.ids.length && b.vis === "teaser") await act(() => rpc("send_teaser", { p_token: S.token, p_body: b.caption, p_photos: b.ids.slice(0, 4) }));
   await refresh();
   if (b.ids.length) toast(b.task ? `משימה הושלמה! +${Number(b.task.pts) || 0}` : b.ids.length === 1 ? "עלה בהצלחה" : `${b.ids.length} פריטים עלו`, "check");
-  if (b.fails) toast(b.fails === 1 ? "פריט אחד לא עלה. בדקו חיבור ונסו שוב" : `${b.fails} פריטים לא עלו. בדקו חיבור ונסו שוב`, "x");
+  if (b.fails) toast(b.err === "quota" ? ERR.quota : b.fails === 1 ? "פריט אחד לא עלה. בדקו חיבור ונסו שוב" : `${b.fails} פריטים לא עלו. בדקו חיבור ונסו שוב`, "x");
   if (UQ.items.every(x => x.state === "done" || x.state === "fail")) setTimeout(() => { if (UQ.items.every(x => x.state === "done" || x.state === "fail")) { UQ.items = []; renderUQ(); } }, 2200);
 }
 let uqRaf = 0;
@@ -1471,6 +1498,7 @@ async function processItem(it, attempt = 0) {
   catch (e) {
     console.warn(e);
     if (e && e.code === "decode") { toast("קובץ אחד לא נפתח. נסו JPG או PNG", "x"); return null; }
+    if (e && (e.code === "quota" || /413|exceed/i.test(String(e.message || e)))) { it.batch.err = "quota"; return it.registered || null; }
     if (attempt < 1 && !it.registered) { await new Promise(r => setTimeout(r, 1500)); return processItem(it, attempt + 1); }
     return it.registered || null;
   }
@@ -1628,7 +1656,11 @@ document.addEventListener("click", async e => {
   if (k === "vis") { const v = b.dataset.v; if (v !== p.vis) await mutate(() => rpc("set_photo_vis", { p_token: S.token, p_id: p.id, p_vis: v }), v === "teaser" ? "נשלח כטיזר" : v === "secret" ? "נשמר כסוד של החבורה" : "נשמר"); return; }
   if (k === "del") {
     if (!S.lb.confirmDel) { S.lb.confirmDel = true; refreshLightbox(); setTimeout(() => { if (S.lb && S.lb.confirmDel) { S.lb.confirmDel = false; refreshLightbox(); } }, 4000); return; }
-    if (await mutate(() => rpc("delete_photo", { p_token: S.token, p_id: p.id }), "נמחק")) closeLightbox();
+    const pid = p.id;
+    if (await mutate(() => rpc("delete_photo", { p_token: S.token, p_id: pid }))) {
+      closeLightbox();
+      toast("נמחק מהאלבום", "trash", { label: "ביטול", fn: () => mutate(() => rpc("restore_photo", { p_token: S.token, p_id: pid }), "הוחזר לאלבום") });
+    }
   }
 });
 document.addEventListener("keydown", e => {
@@ -1784,6 +1816,12 @@ function settingsSheet(focus) {
         <button class="btn ghost block" id="st-save">שמירה</button>
       </section>
       <section class="card stack">
+        <h3 class="card-t">גיבוי</h3>
+        <p class="small muted">שום דבר לא נמחק באמת: תמונה שנמחקת נשמרת בשרת ואפשר להחזיר אותה. בנוסף, אפשר להוריד עותק של כל מה שאתם רואים לקובץ ZIP. כדאי לעשות את זה מהמחשב בסוף הערב.</p>
+        <div id="st-usage" class="small muted">בודקים כמה מקום תפוס…</div>
+        <button class="btn ghost block" id="st-zip">${ic("album", 20)}הורדת כל התמונות והסרטונים</button>
+      </section>
+      <section class="card stack">
         <h3 class="card-t">אני</h3>
         <div class="field"><label for="st-nick">השם שלי</label><input class="input" id="st-nick" maxlength="30" value="${esc(me.name)}"></div>
         <div class="seg" role="group" aria-label="תפקיד"><button type="button" data-rr="escort" aria-pressed="${role === "escort"}">מלווה</button><button type="button" data-rr="couple" aria-pressed="${role === "couple"}">אני ${esc(coupleName(mySide()))}</button></div>
@@ -1794,6 +1832,14 @@ function settingsSheet(focus) {
       <p class="small muted" style="text-align:center">${S.st.members.filter(m => m.team === "groom").length} בחבורת החתן · ${S.st.members.filter(m => m.team === "bride").length} בחבורת הכלה</p>
     </div>`, sh => {
     attachVenuePicker($("#st-v", sh), $("#st-vc", sh));
+    rpc("storage_usage", { p_token: S.token }).then(u => {
+      const el = $("#st-usage", sh); if (!el || !u) return;
+      const mb = b => (b / 1048576).toFixed(b < 10485760 ? 1 : 0);
+      const pct = Math.min(100, Math.round(u.project_bytes / u.limit_bytes * 100));
+      el.innerHTML = `התמונות של החתונה תופסות ${mb(u.wedding_bytes)}MB. בשרת נוצלו ${mb(u.project_bytes)}MB מתוך ${Math.round(u.limit_bytes / 1073741824)}GB.
+        <div class="progress" style="margin-top:8px"><i style="width:${pct}%;${pct > 80 ? "background:var(--bride)" : ""}"></i></div>${pct > 80 ? `<b style="color:var(--bride);display:block;margin-top:6px">המקום עומד להיגמר. כדאי להגדיל את האחסון בשרת.</b>` : ""}`;
+    }).catch(() => { const el = $("#st-usage", sh); if (el) el.textContent = ""; });
+    $("#st-zip", sh).onclick = () => backupZip($("#st-zip", sh));
     if (focus === "contacts") setTimeout(() => { $("#st-c", sh).scrollIntoView({ block: "center" }); $("#st-c", sh).focus(); }, 300);
     $("#st-rsave", sh).onclick = () => { const d = $("#st-rd", sh).value, t = $("#st-rt", sh).value; if (d && t) mutate(() => rpc("update_wedding", { p_token: S.token, p: { reveal_at: new Date(`${d}T${t}:00`).toISOString() } }), "שעת החשיפה עודכנה"); };
     const now = $("#st-now", sh);
@@ -1813,6 +1859,53 @@ function settingsSheet(focus) {
     const out = $("#st-out", sh);
     out.onclick = () => { if (!out.dataset.sure) { out.dataset.sure = 1; out.textContent = "בטוחים? תצטרכו את הקוד כדי לחזור"; return; } logout(); };
   });
+}
+
+/* backup: everything this person can see, zipped on the device */
+let zipLib = null;
+function loadZip() {
+  if (!zipLib) zipLib = new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    sc.onload = () => res(window.JSZip); sc.onerror = () => { zipLib = null; rej(new ApiError("network")); };
+    document.head.appendChild(sc);
+  });
+  return zipLib;
+}
+async function backupZip(btn) {
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  try {
+    const [JSZip, list] = await Promise.all([loadZip(), rpc("backup_manifest", { p_token: S.token })]);
+    if (!list || !list.length) { toast("עוד אין מה לגבות", "album"); return; }
+    const zip = new JSZip(), meta = [];
+    let done = 0, failed = 0, i = 0;
+    const stamp = t => { const d = new Date(t); return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`; };
+    const worker = async () => {
+      while (i < list.length) {
+        const it = list[i++], url = pub(it.path);
+        try {
+          const r = await fetch(url); if (!r.ok) throw 0;
+          const ext = it.path.split(".").pop();
+          const name = `${it.team === "groom" ? "חבורת-החתן" : "חבורת-הכלה"}/${stamp(it.at)}-${it.id.slice(0, 6)}.${ext}`;
+          zip.file(name, await r.blob(), { binary: true });
+          meta.push({ file: name, caption: it.caption, by: it.by, at: it.at, kind: it.kind });
+        } catch { failed++; }
+        done++;
+        btn.textContent = `מכינים גיבוי ${done} מתוך ${list.length}…`;
+      }
+    };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    zip.file("פרטים.json", JSON.stringify({ wedding: `${W().groom} ו${W().bride}`, date: W().date, items: meta }, null, 2));
+    btn.textContent = "אורזים…";
+    const blob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = `שני-צדדים-${W().date}.zip`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    toast(failed ? `הגיבוי ירד. ${failed} קבצים לא הורדו, נסו שוב` : `הגיבוי ירד: ${list.length - failed} קבצים`, failed ? "x" : "check");
+  } catch (e) { toast(ERR[e.code] || "הגיבוי לא הצליח. נסו שוב", "x"); }
+  finally { btn.disabled = false; btn.innerHTML = label; }
 }
 
 /* reveal moment */
