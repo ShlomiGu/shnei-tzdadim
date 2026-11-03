@@ -321,6 +321,9 @@ input[type="date"].input,input[type="time"].input{text-align:right}
 .lb-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .lb .heart{display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 15px;border-radius:999px;background:rgb(255 255 255 / .12);font-weight:700}
 .lb .heart[aria-pressed="true"]{background:#F09DB6;color:#2A0E18}
+.lb .save-btn{display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:0 16px;border-radius:999px;background:#F3ECF1;color:#1B1120;font-weight:700;font-size:14px}
+.lb .save-btn.ready{background:#D9B568;color:#2A1F08}
+.lb .save-btn .spin{border-color:rgb(0 0 0 / .2);border-top-color:#1B1120}
 .lb .seg{background:rgb(255 255 255 / .12)}
 .lb .seg button{color:#B8A9B4;font-size:13px;padding:9px 6px}
 .lb .seg button[aria-pressed="true"]{background:#F3ECF1;color:#1B1120}
@@ -496,6 +499,7 @@ const I = {
   trash:'<path d="M5 7h14M10 7V5h4v2M7 7l1 12.5h8L17 7"/>',
   edit:'<path d="M4.5 19.5h4l10-10a2.8 2.8 0 0 0-4-4l-10 10z"/>',
   arrowR:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  save:'<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 17.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5"/>',
   play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
   friends:'<circle cx="9" cy="8.5" r="3.2"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M3.5 19.5c.7-3.2 2.9-5 5.5-5s4.8 1.8 5.5 5"/><path d="M14.8 14.7c.5-.1 1.1-.2 1.7-.2 2.2 0 4 1.5 4.5 4.5"/>',
   nav:'<path d="M12 2.8 19.5 21 12 16.8 4.5 21z"/>'
@@ -1625,6 +1629,78 @@ function openLightbox(id) {
   refreshLightbox(true);
 }
 function lbStep(d) { if (!S.lb) return; const i = S.lb.list.indexOf(S.lb.id), n = S.lb.list[i + d]; if (n) { S.lb.id = n; S.lb.confirmDel = false; refreshLightbox(true); } }
+/* save to the phone: share sheet ("Save Image / Save Video") where available, a download otherwise */
+const SAVE = { cache: new Map(), busy: null, ready: null };
+function saveName(p, ext) {
+  const d = new Date(ms(p.created_at));
+  return `${coupleName("groom")}-${coupleName("bride")}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}-${p.id.slice(0, 4)}.${ext}`.replace(/\s+/g, "_");
+}
+async function prepSave(p) {
+  if (SAVE.cache.has(p.id)) return SAVE.cache.get(p.id);
+  const job = (async () => {
+    const r = await fetch(pub(p.path)); if (!r.ok) throw new ApiError("fetch");
+    let blob = await r.blob(), ext = (p.path.split(".").pop() || "jpg").toLowerCase(), type = blob.type;
+    if (p.kind !== "video" && ext !== "jpg") {
+      // phones' galleries prefer JPEG; WebP is converted on the device
+      try {
+        const bmp = await createImageBitmap(blob);
+        const c = document.createElement("canvas"); c.width = bmp.width; c.height = bmp.height;
+        c.getContext("2d").drawImage(bmp, 0, 0);
+        blob = await toBlob(c, "image/jpeg", .93); ext = "jpg"; type = "image/jpeg";
+      } catch {}
+    }
+    if (p.kind === "video") type = ext === "mov" ? "video/quicktime" : ext === "webm" ? "video/webm" : "video/mp4";
+    return new File([blob], saveName(p, ext), { type: type || "application/octet-stream" });
+  })();
+  SAVE.cache.set(p.id, job);
+  job.catch(() => SAVE.cache.delete(p.id));
+  if (SAVE.cache.size > 12) SAVE.cache.delete(SAVE.cache.keys().next().value);
+  return job;
+}
+function downloadFile(file) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+async function shareOrDownload(file) {
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return "shared"; }
+    catch (e) { if (e && e.name === "AbortError") return "cancelled"; if (e && e.name === "NotAllowedError") return "need-tap"; }
+  }
+  downloadFile(file); return "downloaded";
+}
+async function saveMedia(p) {
+  // second tap after a slow download: the file is ready, so the share sheet opens straight from the tap
+  if (SAVE.ready && SAVE.ready.id === p.id) {
+    const f = SAVE.ready.file; SAVE.ready = null; refreshLightbox();
+    const r = await shareOrDownload(f);
+    if (r === "downloaded") toast("נשמר בהורדות", "check");
+    return;
+  }
+  const cached = SAVE.cache.get(p.id);
+  let file = null;
+  if (cached) { try { file = await Promise.race([cached, new Promise(r => setTimeout(() => r(null), 120))]); } catch { file = null; } }
+  if (file) {
+    const r = await shareOrDownload(file);
+    if (r === "downloaded") toast("נשמר בהורדות", "check");
+    else if (r === "need-tap") { SAVE.ready = { id: p.id, file }; refreshLightbox(); }
+    return;
+  }
+  SAVE.busy = p.id; refreshLightbox();
+  try {
+    file = await prepSave(p);
+    SAVE.busy = null;
+    const r = await shareOrDownload(file);
+    if (r === "downloaded") toast("נשמר בהורדות", "check");
+    else if (r === "need-tap") { SAVE.ready = { id: p.id, file }; toast("מוכן. לחצו שוב על השמירה", "save"); }
+  } catch (e) {
+    SAVE.busy = null;
+    // last resort: let the browser download it straight from the server
+    const a = document.createElement("a"); a.href = pub(p.path) + "?download=" + encodeURIComponent(saveName(p, p.path.split(".").pop()));
+    a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
+  } finally { if (S.lb && S.lb.id === p.id) refreshLightbox(); }
+}
 function closeLightbox() { $("#lb")?.remove(); S.lb = null; document.body.style.overflow = $("#sheet") ? "hidden" : ""; }
 function refreshLightbox(newImage) {
   const el = $("#lb"); if (!el || !S.lb) return;
@@ -1642,6 +1718,7 @@ function refreshLightbox(newImage) {
       <div class="lb-meta">${full ? `${esc(nameOf(p.member_id))} · ` : ""}${ago(ms(p.created_at))}</div>
       <div class="lb-actions">
         ${full ? `<button class="heart" data-lb="heart" aria-pressed="${!!p.hearted}">${ic("heart", 18, 2)}${p.hearts || ""}</button>` : ""}
+        ${full ? `<button class="save-btn ${SAVE.ready && SAVE.ready.id === p.id ? "ready" : ""}" data-lb="save" ${SAVE.busy === p.id ? "disabled" : ""}>${SAVE.busy === p.id ? `<span class="spin"></span>מכינים…` : SAVE.ready && SAVE.ready.id === p.id ? `${ic("check", 18, 2.2)}לחצו לשמירה` : `${ic("save", 18, 2)}שמירה`}</button>` : ""}
         ${ours ? `<button class="vis-btn grow" data-lb="vis-open" aria-expanded="${!!S.lb.visOpen}">${ic(p.vis === "teaser" ? "eye" : p.vis === "secret" ? "shield" : p.vis === "escorts" ? "friends" : "lock", 16, 2)}<span>${VIS_LABEL(p.vis)}</span>${ic(S.lb.visOpen ? "chevR" : "chevL", 14, 2)}</button>` : ""}
         ${p.member_id === ME().id ? `<button class="del" data-lb="del">${S.lb.confirmDel ? "בטוחים? לחצו שוב" : "מחיקה"}</button>` : ""}
       </div>`;
@@ -1661,6 +1738,7 @@ function refreshLightbox(newImage) {
       ${i < n - 1 ? `<button class="lb-nav next" data-lb="next" aria-label="הבאה">${ic("chevL")}</button>` : ""}
     </div>
     <div class="lb-info">${info}</div>`;
+  if (full && !vid) prepSave(p).catch(() => {});
   if (full && !vid) {
     const pid = p.id, img = $(".lb-stage img", el), big = pub(p.path);
     if (big) { const pre = new Image(); pre.onload = () => { if (S.lb && S.lb.id === pid && img.isConnected) img.src = big; }; pre.src = big; }
@@ -1676,6 +1754,7 @@ document.addEventListener("click", async e => {
   if (k === "next") return lbStep(1);
   if (!p) return;
   if (k === "heart") return mutate(() => rpc("toggle_heart", { p_token: S.token, p_photo: p.id }));
+  if (k === "save") return saveMedia(p);
   if (k === "vis-open") { S.lb.visOpen = !S.lb.visOpen; refreshLightbox(); return; }
   if (k === "vis") {
     const v = b.dataset.v; S.lb.visOpen = false;
