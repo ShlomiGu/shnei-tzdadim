@@ -81,6 +81,8 @@ p{margin:0}
 .tabs{position:fixed;inset:auto 0 0 0;z-index:30;background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);
   border-top:1px solid var(--line);padding:0 max(6px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(6px,env(safe-area-inset-left,0px))}
 .tabs-in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);align-items:end}
+.tabs-in.four{grid-template-columns:repeat(4,1fr)}
+#app[data-side="guest"]{--me:var(--gold);--me-soft:var(--gold-soft);--them:var(--bride);--them-soft:var(--bride-soft)}
 .tab{display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 0 9px;font-size:11.5px;font-weight:500;color:var(--muted);position:relative}
 .tab[aria-current="page"]{color:var(--ink);font-weight:600}
 .tab[aria-current="page"] .ic{color:var(--me)}
@@ -394,6 +396,23 @@ a.nn{color:inherit}
 .vis-row{display:flex;flex-wrap:wrap;gap:6px}
 .vis-row button{padding:8px 13px;border-radius:999px;background:rgb(255 255 255 / .12);color:#E9DEE6;font-size:13.5px;font-weight:600}
 .vis-row button[aria-pressed="true"]{background:#F3ECF1;color:#1B1120}
+.code-card.guest{background:var(--gold-soft)} .code-card.guest .code{color:var(--gold-ink)}
+.qr-box{width:220px;height:220px;border-radius:16px;overflow:hidden;background:#fff;display:grid;place-items:center;box-shadow:0 4px 18px rgb(0 0 0 / .08)}
+.qr-box .spin{border-color:rgb(0 0 0 / .15);border-top-color:#241821}
+.qr-box svg{display:block;width:100%;height:100%}
+.st-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.st-chip{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;padding:10px 12px;border-radius:var(--r-s);background:var(--surface);box-shadow:var(--shadow);text-align:start;min-width:0;font-size:13px}
+.st-chip .st-k{color:var(--muted)}
+.st-chip b{font-weight:600;font-size:14px;width:100%;overflow-wrap:anywhere}
+.st-chip .st-t{font-size:12px;color:var(--muted)}
+button.st-chip{box-shadow:inset 0 0 0 1.5px var(--me-soft),var(--shadow)}
+button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
+.page-h .chip{display:inline-flex;align-items:center;gap:6px}
+.show{position:fixed;inset:0;z-index:90;background:#000;animation:fade .3s}
+.show img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity 1.2s ease}
+.show img.on{opacity:1}
+.show-cap{position:absolute;left:0;right:0;bottom:calc(24px + env(safe-area-inset-bottom,0px));text-align:center;color:#fff;font-size:18px;font-weight:500;text-shadow:0 2px 10px rgb(0 0 0 / .7);padding:0 24px}
+.show-x{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:12px;color:#fff;background:rgb(255 255 255 / .12)}
 /* media */
 .tile{background-size:cover;background-position:center}
 .tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
@@ -583,7 +602,9 @@ const ME = () => S.st.me;
 const mySide = () => S.st.me.team;
 const otherSide = () => mySide() === "groom" ? "bride" : "groom";
 const coupleName = t => t === "groom" ? (W().groom || "החתן") : (W().bride || "הכלה");
-const teamLabel = t => t === "groom" ? "חבורת החתן" : "חבורת הכלה";
+const teamLabel = t => t === "groom" ? "חבורת החתן" : t === "bride" ? "חבורת הכלה" : "האורחים";
+const isGuest = () => !!(S.st && S.st.me.role === "guest");
+const GUEST_VIEWS = ["home", "album", "schedule"];
 const sideVar = t => t === "groom" ? "var(--groom)" : t === "bride" ? "var(--bride)" : "var(--gold)";
 const revealMs = () => { const t = Date.parse(W().reveal_at || ""); return isNaN(t) ? Infinity : t; };
 const isRevealed = () => !!S.st.revealed;
@@ -750,10 +771,11 @@ function render(scrollTop) {
       <nav class="tabs" aria-label="ניווט"><div class="tabs-in" id="tabs"></div></nav>`;
   }
   $("#side-pill-t").textContent = teamLabel(mySide());
+  if (isGuest() && !GUEST_VIEWS.includes(S.view)) S.view = "home";
   renderTabs();
   const keep = {}; $$("#view [data-keep]").forEach(el => keep[el.id] = el.value);
   const focusId = document.activeElement && document.activeElement.closest && document.activeElement.closest("#view") ? document.activeElement.id : null;
-  $("#view").innerHTML = ({ home: vHome, album: vAlbum, schedule: vSchedule, tasks: vTasks, teasers: vTeasers })[S.view]();
+  $("#view").innerHTML = (isGuest() ? { home: vHomeGuest, album: vAlbumGuest, schedule: vSchedule } : { home: vHome, album: vAlbum, schedule: vSchedule, tasks: vTasks, teasers: vTeasers })[S.view]();
   for (const [id, v] of Object.entries(keep)) { const el = document.getElementById(id); if (el) el.value = v; }
   if (focusId && document.getElementById(focusId)) document.getElementById(focusId).focus({ preventScroll: true });
   if (scrollTop) window.scrollTo({ top: 0 });
@@ -762,15 +784,44 @@ function renderTabs() {
   const seen = store.get("seen.teasers", 0);
   const newT = S.view === "teasers" ? 0 : S.st.teasers.filter(t => t.team !== mySide() && ms(t.created_at) > seen).length;
   const tab = (v, icon, label, badge) => `<a class="tab" href="#${v}" ${S.view === v ? 'aria-current="page"' : ""}>${ic(icon, 23)}<span>${label}</span>${badge ? `<span class="badge">${badge > 9 ? "9+" : badge}</span>` : ""}</a>`;
-  $("#tabs").innerHTML = tab("home", "home", "היום") + tab("album", "album", "אלבום") +
-    `<div class="fab-slot"><button class="fab" data-act="pick" aria-label="צילום והעלאה">${ic("camera", 27, 1.8)}</button><span class="fab-label">צילום</span></div>` +
-    tab("tasks", "tasks", "משימות") + tab("teasers", "note", "טיזרים", newT);
+  const fab = `<div class="fab-slot"><button class="fab" data-act="pick" aria-label="צילום והעלאה">${ic("camera", 27, 1.8)}</button><span class="fab-label">צילום</span></div>`;
+  $("#tabs").classList.toggle("four", isGuest());
+  $("#tabs").innerHTML = isGuest()
+    ? tab("home", "home", "היום") + tab("album", "album", "אלבום") + fab + tab("schedule", "clock", "לו״ז")
+    : tab("home", "home", "היום") + tab("album", "album", "אלבום") + fab + tab("tasks", "tasks", "משימות") + tab("teasers", "note", "טיזרים", newT);
 }
 function setView(v) {
   if (!VIEWS.includes(v)) v = "home";
   S.view = v;
   if (v === "teasers") store.set("seen.teasers", nowMs());
   render(true);
+}
+
+/* ============ status ============ */
+const STATUSES = ["מתארגנים", "מצטלמים", "יצאנו לדרך", "הגענו לאולם", "מוכנים לחופה", "חוגגים"];
+function statusRow(readonly) {
+  const st = S.st.wedding.status || {};
+  const one = t => {
+    const val = st[t] || "", at = st[t + "_at"] ? ago(ms(st[t + "_at"])) : "";
+    const mine = !readonly && t === mySide();
+    return `<${mine ? `button data-act="status"` : "div"} class="st-chip ${t}" ${mine ? 'aria-label="עדכון הסטטוס שלנו"' : ""}>
+      <i class="dot" style="background:${sideVar(t)}"></i><span class="st-k">${t === "groom" ? coupleName("groom") : coupleName("bride")}</span>
+      <b>${val ? esc(val) : (mine ? "עדכנו איפה אתם" : "עוד לא עדכנו")}</b>${val && at ? `<span class="st-t">${at}</span>` : ""}${mine ? ic("edit", 14) : ""}
+    </${mine ? "button" : "div"}>`;
+  };
+  return `<div class="st-row">${one(readonly ? "groom" : otherSide())}${one(readonly ? "bride" : mySide())}</div>`;
+}
+function statusSheet() {
+  const cur = (S.st.wedding.status || {})[mySide()] || "";
+  openSheet(`איפה ${teamLabel(mySide())} עכשיו?`, `<div class="stack">
+    <p class="small muted">הצד השני והאורחים רואים את זה בדף הבית.</p>
+    <div class="opts">${STATUSES.map(x => `<button class="opt" data-st="${esc(x)}" aria-pressed="${x === cur}"><span class="oi">${ic(x === cur ? "check" : "pin", 18)}</span><span><b>${esc(x)}</b></span></button>`).join("")}</div>
+    <div class="row"><input class="input grow" id="st-free" maxlength="40" placeholder="או כתבו משהו אחר"><button class="btn sm" id="st-free-go">שמירה</button></div>
+  </div>`, sh => {
+    const save = v => mutate(() => rpc("set_status", { p_token: S.token, p_status: v }), "עודכן").then(ok => ok && closeSheet());
+    $$("[data-st]", sh).forEach(b => b.onclick = () => save(b.dataset.st));
+    $("#st-free-go", sh).onclick = () => { const v = $("#st-free", sh).value.trim(); if (v) save(v); };
+  });
 }
 
 /* ============ views: home ============ */
@@ -801,6 +852,7 @@ function vHome() {
       <h1 class="names"><span>${esc(coupleName("groom"))}</span><span class="amp">&amp;</span><span>${esc(coupleName("bride"))}</span></h1>
       <div class="cd-row">${ringsSvg(rv ? 1 : dayProgress())}<span>${rv ? "שני הצדדים נפגשו" : "עד החשיפה"}</span><b data-countdown dir="ltr">${rv ? "מזל טוב!" : fmtLeft(revealMs() - now)}</b></div>
     </section>
+    ${!rv ? statusRow(false) : ""}
 
     <section class="card moments">
       <div class="card-h"><h2 class="card-t">${rv ? "האלבום המשותף" : "הרגעים שלנו"}</h2>${photosToday ? `<a class="link" href="#album">${photosToday} באלבום</a>` : ""}</div>
@@ -848,11 +900,76 @@ function vHome() {
   </div>`;
 }
 
+/* ============ guest views ============ */
+function guestFeed() { return S.st.photos.filter(p => p.mode === "full" && (p.team === "guest" || p.vis !== "secret")); }
+function vHomeGuest() {
+  const w = W(), rv = isRevealed(), now = nowMs();
+  const feed = guestFeed(), n = feed.length, take = n >= 6 ? 6 : n >= 3 ? 3 : n, shown = feed.slice(0, take);
+  const items = schedSorted(); let cur = null, nxt = null;
+  for (const it of items) { const t = itemTime(it.t); if (isNaN(t)) continue; if (t <= now) cur = it; else { nxt = it; break; } }
+  return `<div class="stack">
+    <section class="hero-c">
+      <div class="hero-date">${esc(fmtDate(w.date))}${w.venue ? " · " + esc(w.venue) + (w.venue_city ? ", " + esc(w.venue_city) : "") : ""}</div>
+      <h1 class="names"><span>${esc(coupleName("groom"))}</span><span class="amp">&amp;</span><span>${esc(coupleName("bride"))}</span></h1>
+      <div class="cd-row">${ringsSvg(rv ? 1 : dayProgress())}<span>${rv ? "מזל טוב!" : "עד החופה"}</span>${rv ? "" : `<b data-countdown dir="ltr">${fmtLeft(revealMs() - now)}</b>`}</div>
+    </section>
+    <section class="card moments">
+      <div class="card-h"><h2 class="card-t">${rv ? "האלבום של החתונה" : "התמונות של האורחים"}</h2>${n ? `<a class="link" href="#album">${n} באלבום</a>` : ""}</div>
+      ${shown.length ? `<div class="mosaic n${take}">${shown.map((p, i) => tileHtml(p, { ribbon: rv, more: i === take - 1 && n > take ? n - take : 0 })).join("")}</div>`
+        : `<button class="moments-empty" data-act="pick">${ic("camera", 34, 1.5)}<b>התמונה הראשונה שלכם</b><span>${rv ? "מה שתעלו יופיע באלבום של החתונה" : "האורחים רואים עכשיו, והזוג והחבורות אחרי החופה"}</span></button>`}
+      <div class="row" style="margin-top:12px"><button class="btn grow" data-act="pick">${ic("camera", 20)}צלמו ושתפו</button>${shown.length ? `<a class="btn ghost" href="#album">${ic("album", 20)}אלבום</a>` : ""}</div>
+      <p class="small muted" style="text-align:center;margin-top:10px">${rv ? "כל מה שעולה כאן נכנס לאלבום של הזוג" : "התמונות שלכם נשמרות לזוג. הם יראו אותן אחרי החופה"}</p>
+    </section>
+    ${!rv ? statusRow(true) : ""}
+    ${(cur || nxt) ? `<a class="nn" href="#schedule">
+      <div class="now"><div class="k">עכשיו</div>${cur ? `<div class="t">${esc(cur.t)}</div><div class="n">${esc(cur.title)}</div>` : `<div class="n muted" style="margin-top:6px">עוד לא התחלנו</div>`}</div>
+      <div><div class="k">הבא בתור</div>${nxt ? `<div class="t">${esc(nxt.t)}</div><div class="n">${esc(nxt.title)}</div>` : `<div class="n muted" style="margin-top:6px">זהו, רק לרקוד</div>`}</div>
+    </a>` : ""}
+  </div>`;
+}
+function vAlbumGuest() {
+  const rv = isRevealed();
+  if (!rv || !["guest", "all"].includes(S.albumTab)) S.albumTab = rv ? (S.albumTab === "guest" ? "guest" : "all") : "guest";
+  const mine = S.st.photos.filter(p => p.team === "guest");
+  const all = guestFeed().slice().sort((a, b) => ms(a.created_at) - ms(b.created_at));
+  const list = S.albumTab === "guest" ? mine : all;
+  return `<div class="page-h"><h1 class="page-t">אלבום</h1>${list.length ? `<button class="chip" data-act="slideshow">${ic("play", 14)} מצגת</button>` : ""}</div>
+    ${rv ? `<div class="seg" role="group" style="margin-bottom:14px"><button data-act="album-tab" data-tab="all" aria-pressed="${S.albumTab === "all"}">כל החתונה · ${all.length}</button><button data-act="album-tab" data-tab="guest" aria-pressed="${S.albumTab === "guest"}">האורחים · ${mine.length}</button></div>` : ""}
+    ${list.length ? `<div class="grid">${(S.albumTab === "guest" ? list : list).map(p => tileHtml(p, { ribbon: rv && S.albumTab === "all" })).join("")}</div>`
+      : `<div class="empty"><h3>עוד אין כאן תמונות</h3><p>צלמו את הרגעים שלכם מהחתונה. הזוג יקבל את כולן.</p><button class="btn" data-act="pick" style="margin-top:16px">${ic("camera", 20)}צילום או העלאה</button></div>`}`;
+}
+
+/* ============ slideshow (small option) ============ */
+function slideshow() {
+  const pool = () => (isGuest() ? guestFeed() : S.albumTab === "ours" ? S.st.photos.filter(p => p.team === mySide()) : S.albumTab === "other" ? S.st.photos.filter(p => p.team === otherSide() && p.mode === "full") : sharedList())
+    .filter(p => p.mode === "full" && p.kind !== "video").slice().sort((a, b) => ms(b.created_at) - ms(a.created_at));
+  if (!pool().length) return toast("אין עדיין תמונות למצגת", "album");
+  const el = document.createElement("div"); el.className = "show"; el.dir = "rtl";
+  el.innerHTML = `<img class="a"><img class="b"><div class="show-cap"></div><button class="icon-btn show-x" aria-label="סגירה">${ic("x")}</button>`;
+  document.body.appendChild(el); document.body.style.overflow = "hidden";
+  try { el.requestFullscreen && el.requestFullscreen().catch(() => {}); } catch {}
+  let wake = null; try { navigator.wakeLock && navigator.wakeLock.request("screen").then(w => wake = w, () => {}); } catch {}
+  let i = 0, front = "a", seen = new Set(), timer = 0;
+  const step = () => {
+    const list = pool(); if (!list.length) return;
+    const fresh = list.find(p => !seen.has(p.id));       // new photos jump the queue
+    const p = fresh || list[i++ % list.length]; seen.add(p.id);
+    const next = front === "a" ? "b" : "a", img = $("img." + next, el);
+    img.onload = () => { img.classList.add("on"); $("img." + front, el).classList.remove("on"); front = next;
+      $(".show-cap", el).textContent = [p.caption, nameOf(p.member_id)].filter(Boolean).join(" · "); };
+    img.src = pub(p.path) || pub(p.thumb_path);
+    timer = setTimeout(step, 6000);
+  };
+  const close = () => { clearTimeout(timer); el.remove(); document.body.style.overflow = ""; try { document.fullscreenElement && document.exitFullscreen(); } catch {} try { wake && wake.release(); } catch {} };
+  $(".show-x", el).onclick = close; el.addEventListener("keydown", e => e.key === "Escape" && close());
+  step();
+}
+
 /* ============ tiles ============ */
 function tileHtml(p, opts = {}) {
   if (!p) return `<div class="tile veiled lace"><span class="lockc">${ic("lock", 22, 2)}</span></div>`;
   const full = p.mode === "full";
-  const vb = p.team === mySide() ? (p.vis === "teaser" ? "eye" : p.vis === "secret" ? "shield" : p.vis === "escorts" ? "friends" : "lock") : "";
+  const vb = p.team === mySide() && !isGuest() ? (p.vis === "teaser" ? "eye" : p.vis === "secret" ? "shield" : p.vis === "escorts" ? "friends" : "lock") : "";
   const blur = safeBlur(p.blur);
   const src = full ? pub(p.thumb_path) : blur;
   return `<button class="tile ${full ? "" : "blur"}" data-act="photo" data-id="${esc(p.id)}" aria-label="${esc(p.caption || (p.kind === "video" ? "סרטון" : "תמונה"))}"${full && blur ? ` style="background-image:url('${blur}')"` : ""}>
@@ -894,10 +1011,10 @@ function vAlbum() {
     }
   } else {
     const all = sharedList();
-    body = all.length ? `<div class="album-meta"><span>${all.length} תמונות, מהבוקר ועד עכשיו</span><span class="row" style="gap:12px"><span class="row" style="gap:5px"><i class="dot" style="background:var(--groom)"></i>חתן</span><span class="row" style="gap:5px"><i class="dot" style="background:var(--bride)"></i>כלה</span></span></div>
+    body = all.length ? `<div class="album-meta"><span>${all.length} תמונות, מהבוקר ועד עכשיו</span><span class="row" style="gap:12px"><span class="row" style="gap:5px"><i class="dot" style="background:var(--groom)"></i>חתן</span><span class="row" style="gap:5px"><i class="dot" style="background:var(--bride)"></i>כלה</span>${all.some(p => p.team === "guest") ? `<span class="row" style="gap:5px"><i class="dot" style="background:var(--gold)"></i>אורחים</span>` : ""}</span></div>
       <div class="grid">${all.map(p => tileHtml(p, { ribbon: true })).join("")}</div>` : `<div class="empty"><h3>עוד אין תמונות משותפות</h3></div>`;
   }
-  return `<div class="page-h"><h1 class="page-t">אלבום</h1></div>
+  return `<div class="page-h"><h1 class="page-t">אלבום</h1>${S.st.photos.some(p => p.mode === "full" && p.kind !== "video") ? `<button class="chip" data-act="slideshow">${ic("play", 14)} מצגת</button>` : ""}</div>
     <div class="seg" role="group" style="margin-bottom:14px">${tabs.map(([k, l]) => `<button data-act="album-tab" data-tab="${k}" aria-pressed="${S.albumTab === k}">${esc(l)}</button>`).join("")}</div>
     ${body}`;
 }
@@ -1289,10 +1406,14 @@ function renderJoin(prefill = "") {
     const app = $("#app");
     if (!info) { $("#jn-info").innerHTML = ""; $("#jn-rest").hidden = true; delete app.dataset.side; return; }
     app.dataset.side = info.team;
-    const c = info.team === "groom" ? "var(--groom)" : "var(--bride)", cs = info.team === "groom" ? "var(--groom-soft)" : "var(--bride-soft)";
+    const guest = info.team === "guest";
+    const c = guest ? "var(--gold)" : info.team === "groom" ? "var(--groom)" : "var(--bride)", cs = guest ? "var(--gold-soft)" : info.team === "groom" ? "var(--groom-soft)" : "var(--bride-soft)";
     const name = info.team === "groom" ? info.groom : info.bride;
-    $("#jn-info").innerHTML = `<div class="team-banner" style="--c:${c};background:${cs}"><span class="ring"></span><span><b>${teamLabel(info.team)} של ${esc(name)}</b><span class="small muted">החתונה של ${esc(info.groom)} ו${esc(info.bride)} · ${esc(fmtDate(info.date))}</span></span></div>`;
+    $("#jn-info").innerHTML = guest
+      ? `<div class="team-banner" style="--c:${c};background:${cs}"><span class="ring"></span><span><b>ברוכים הבאים לחתונה של ${esc(info.groom)} ו${esc(info.bride)}</b><span class="small muted">צלמו ושתפו. כל התמונות נשמרות לזוג</span></span></div>`
+      : `<div class="team-banner" style="--c:${c};background:${cs}"><span class="ring"></span><span><b>${teamLabel(info.team)} של ${esc(name)}</b><span class="small muted">החתונה של ${esc(info.groom)} ו${esc(info.bride)} · ${esc(fmtDate(info.date))}</span></span></div>`;
     $("#jn-couple").textContent = `אני ${name}`;
+    $("#jn-couple").closest(".seg").hidden = guest;
     $("#jn-rest").hidden = false;
   };
   let seq = 0;
@@ -1404,15 +1525,76 @@ function codeCard(team, code, sub) {
     </div>
   </div>`;
 }
+let qrLib = null;
+function loadQR() {
+  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"; sc.onload = () => res(window.qrcode); sc.onerror = () => { qrLib = null; rej(new ApiError("network")); }; document.head.appendChild(sc); });
+  return qrLib;
+}
+async function qrSvg(text, px) {
+  const qrcode = await loadQR(); const q = qrcode(0, "M"); q.addData(text); q.make();
+  const n = q.getModuleCount(), cell = px / (n + 8); let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${(c + 4) * cell} ${(r + 4) * cell}h${cell}v${cell}h-${cell}z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${px} ${px}" width="${px}" height="${px}"><rect width="${px}" height="${px}" fill="#fff"/><path d="${d}" fill="#241821" shape-rendering="crispEdges"/></svg>`;
+}
+async function tableCard() {
+  // a printable card for the tables: names, QR and one line of instructions
+  const W0 = 1240, H0 = 1754, c = document.createElement("canvas"); c.width = W0; c.height = H0;
+  const x = c.getContext("2d"); await document.fonts.ready;
+  const g = x.createLinearGradient(0, 0, 0, H0); g.addColorStop(0, "#FBF7F9"); g.addColorStop(1, "#F1E4EA"); x.fillStyle = g; x.fillRect(0, 0, W0, H0);
+  x.strokeStyle = "#B08A3A"; x.lineWidth = 4; x.strokeRect(50, 50, W0 - 100, H0 - 100);
+  const ring = (cx, col) => { x.beginPath(); x.arc(cx, 300, 70, 0, Math.PI * 2); x.strokeStyle = col; x.lineWidth = 16; x.stroke(); };
+  ring(655, "#22686C"); ring(585, "#B2486A");
+  x.fillStyle = "#241821"; x.textAlign = "center"; x.direction = "rtl";
+  x.font = '500 96px "Frank Ruhl Libre", serif'; x.fillText(`${coupleName("groom")} & ${coupleName("bride")}`, W0 / 2, 520);
+  x.font = '400 46px "Rubik", sans-serif'; x.fillStyle = "#6E6068"; x.fillText("צלמו את הרגעים שלכם ושתפו אותם איתנו", W0 / 2, 610);
+  const img = new Image(); img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(await qrSvg(inviteUrl(W().my_code_guest || W().guest_code || W().my_code), 640));
+  await img.decode(); x.drawImage(img, (W0 - 640) / 2, 690, 640, 640);
+  x.fillStyle = "#241821"; x.font = '500 52px "Rubik", sans-serif'; x.fillText("סרקו עם המצלמה של הטלפון", W0 / 2, 1430);
+  x.font = '400 40px "Rubik", sans-serif'; x.fillStyle = "#6E6068"; x.fillText(`או הקלידו את הקוד ${fmtCode(W().guest_code || W().my_code)}`, W0 / 2, 1500);
+  x.font = '500 34px "Frank Ruhl Libre", serif'; x.fillStyle = "#9A7426"; x.fillText("שני צדדים", W0 / 2, 1640);
+  const blob = await toBlob(c, "image/png", 1);
+  return new File([blob], `qr-${coupleName("groom")}-${coupleName("bride")}.png`.replace(/\s+/g, "_"), { type: "image/png" });
+}
+function guestCodeCard(code) {
+  const url = inviteUrl(code);
+  const msg = `מצלמים בחתונה של ${coupleName("groom")} ו${coupleName("bride")}? שתפו כאן את התמונות 📸\n${url}`;
+  return `<div class="code-card guest">
+    <span class="eyebrow">קוד לאורחים</span>
+    <div class="qr-box" id="qr-box"><span class="spin"></span></div>
+    <span class="code">${fmtCode(code)}</span>
+    <span class="small muted">אורחים שסורקים מעלים תמונות לאלבום של החתונה. הם לא רואים את מה שהחבורות צילמו, ואתם תראו את התמונות שלהם אחרי החשיפה.</span>
+    <div class="row">
+      <a class="btn grow" style="background:#1FA855" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${WA_ICON}וואטסאפ</a>
+      <button class="btn ghost" data-copy="${esc(url)}" aria-label="העתקת קישור">${ic("copy", 20)}</button>
+    </div>
+    ${isGuest() ? "" : `<button class="btn line block" id="qr-card">${ic("save", 18)}כרטיס QR להדפסה לשולחנות</button>`}
+  </div>`;
+}
 function inviteSheet(first) {
   const w = W(), side = mySide(), other = otherSide();
+  if (isGuest()) {
+    openSheet("הזמנת אורחים", `<div class="stack">${guestCodeCard(w.my_code)}</div>`, sh => {
+      qrSvg(inviteUrl(w.my_code), 220).then(svg => { const b = $("#qr-box", sh); if (b) b.innerHTML = svg; }, () => { const b = $("#qr-box", sh); if (b) b.remove(); });
+      $$("[data-copy]", sh).forEach(b => b.onclick = () => copyText(b.dataset.copy, "הקישור הועתק"));
+    });
+    return;
+  }
   openSheet(first ? "החתונה מוכנה!" : "הזמנת חברים", `<div class="stack">
     ${first ? `<p class="muted">שלחו את הקוד לחבורה שלכם. כל מי שמצטרף עם הקוד נכנס ל${teamLabel(side)} ורואה רק את התמונות שלה.</p>` : `<p class="muted">כל מי שמצטרף עם הקוד הזה נכנס ל${teamLabel(side)}.</p>`}
     ${codeCard(side, w.my_code)}
     ${w.other_code ? `<div class="lbl" style="margin-top:6px">ולצד השני</div>
       ${codeCard(other, w.other_code, `שלחו ל${coupleName(other)} או למלווה מהצד ${other === "bride" ? "שלה" : "שלו"}. אחרי שמישהו מהם מצטרף, הקוד הזה יוצג רק להם.`)}` : `<p class="small muted">${teamLabel(other)} כבר בפנים. את הקוד שלהם מקבלים רק מהם.</p>`}
+    ${w.guest_code ? `<div class="lbl" style="margin-top:6px">ולאורחים</div>${guestCodeCard(w.guest_code)}` : ""}
     ${first ? `<button class="btn line block" data-close>למסך הבית</button>` : ""}
   </div>`, sh => {
+    if (w.guest_code) qrSvg(inviteUrl(w.guest_code), 220).then(svg => { const b = $("#qr-box", sh); if (b) b.innerHTML = svg; }, () => { const b = $("#qr-box", sh); if (b) b.remove(); });
+    const qc = $("#qr-card", sh);
+    if (qc) qc.onclick = async () => {
+      qc.disabled = true;
+      try { const f = await tableCard(); const r = await shareOrDownload(f); if (r === "downloaded") toast("הכרטיס ירד. אפשר להדפיס או להציג על מסך", "check"); }
+      catch { toast("לא הצלחנו ליצור את הכרטיס. נסו שוב", "x"); }
+      qc.disabled = false;
+    };
     $$("[data-copy]", sh).forEach(b => b.onclick = () => copyText(b.dataset.copy, "הקישור הועתק"));
     $$("[data-share]", sh).forEach(b => b.onclick = async () => {
       const code = b.dataset.share, team = b.dataset.team;
@@ -1554,8 +1736,8 @@ function uploadSheet(files, taskId) {
       ${willCompress.length ? `<div class="notice">${ic("play", 18)}<span>${willCompress.length === 1 ? "הסרטון גדול, אז נדחס אותו בטלפון" : `${willCompress.length} סרטונים גדולים, נדחס אותם בטלפון`} לפני ההעלאה. זה לוקח בערך כמו אורך הסרטון. השאירו את המסך פתוח עד שזה מסתיים.</span></div>` : ""}
       ${okFiles.length ? `<div class="previews">${okFiles.map((f, i) => urls[i] ? `<div class="tile"><img src="${urls[i]}" alt=""></div>` : `<div class="tile prev-v">${ic("play", 22)}<span dir="ltr">${(f.size / 1048576).toFixed(0)}MB</span></div>`).join("")}</div>
       <div class="field"><label for="up-cap">כיתוב</label><input class="input" id="up-cap" maxlength="120" placeholder="מה קורה כאן?"></div>
-      <div class="lbl">מי יראה</div>
-      <div class="opts">
+      ${isGuest() ? `<div class="notice">${ic("heart", 18)}<span>${rv ? "יופיע באלבום של החתונה, לכולם." : "האורחים רואים עכשיו. הזוג והחבורות יראו אחרי החופה."}</span></div>` : `<div class="lbl">מי יראה</div>`}
+      <div class="opts" ${isGuest() ? "hidden" : ""}>
         ${visOpt("team", "lock", rv ? "כולם" : "רק החבורה, עד החשיפה", rv ? "החשיפה כבר קרתה, שני הצדדים יראו" : `${teamLabel(otherSide())} תראה בחופה, ב-${hhmm(revealMs())}`)}
         <details class="more-opts">
           <summary>עוד אפשרויות</summary>
@@ -1823,7 +2005,7 @@ function closeLightbox() { $("#lb")?.remove(); S.lb = null; document.body.style.
 function refreshLightbox(newImage) {
   const el = $("#lb"); if (!el || !S.lb) return;
   const p = photoById(S.lb.id); if (!p) return closeLightbox();
-  const full = p.mode === "full", ours = p.team === mySide(), vid = p.kind === "video";
+  const full = p.mode === "full", ours = p.team === mySide() && !isGuest(), vid = p.kind === "video";
   const i = S.lb.list.indexOf(p.id), n = S.lb.list.length;
   const top = `<button class="icon-btn" data-lb="close" aria-label="סגירה">${ic("x")}</button>
       <span class="small num" dir="ltr" style="color:#B8A9B4">${n > 1 ? `${i + 1} / ${n}` : ""}</span>
@@ -2019,6 +2201,25 @@ function letterSheet(l) {
 /* settings */
 function settingsSheet(focus) {
   const w = W(), me = ME(), rv = isRevealed();
+  if (isGuest()) {
+    openSheet("הגדרות", `<div class="stack">
+      <section class="card stack">
+        <div class="field"><label for="st-nick">השם שלי</label><input class="input" id="st-nick" maxlength="30" value="${esc(me.name)}"></div>
+        <button class="btn ghost block" id="st-me">שמירה</button>
+      </section>
+      <section class="card stack">
+        <h3 class="card-t">גיבוי</h3>
+        <button class="btn ghost block" id="st-zip">${ic("album", 20)}הורדת כל התמונות שאני רואה</button>
+      </section>
+      <button class="btn danger block" id="st-out">יציאה מהמכשיר הזה</button>
+    </div>`, sh => {
+      $("#st-me", sh).onclick = async () => { if (await mutate(() => rpc("update_me", { p_token: S.token, p_name: $("#st-nick", sh).value, p_role: "guest" }), "נשמר")) closeSheet(); };
+      $("#st-zip", sh).onclick = () => backupZip($("#st-zip", sh));
+      const out = $("#st-out", sh);
+      out.onclick = () => { if (!out.dataset.sure) { out.dataset.sure = 1; out.textContent = "בטוחים? תצטרכו את הקוד כדי לחזור"; return; } logout(); };
+    });
+    return;
+  }
   const rDate = isFinite(revealMs()) ? localDate(new Date(revealMs())) : w.date;
   const rTime = isFinite(revealMs()) ? hhmm(revealMs()) : "19:30";
   const contacts = (Array.isArray(w.contacts) ? w.contacts : []).map(x => [x.name, x.role, x.phone].filter(Boolean).join(" | ")).join("\n");
@@ -2206,9 +2407,11 @@ document.addEventListener("click", async e => {
     case "write-letter": return writeLetterSheet();
     case "letter": { const l = S.st.letters.find(x => x.id === id); if (l) letterSheet(l); return; }
     case "ai-go": return aiGo(a.dataset.kind);
+    case "status": return statusSheet();
+    case "slideshow": return slideshow();
   }
 });
-window.addEventListener("hashchange", () => { if (S.st) setView(location.hash.slice(1)); });
+window.addEventListener("hashchange", () => { if (S.st) setView(isGuest() && !GUEST_VIEWS.includes(location.hash.slice(1)) ? "home" : location.hash.slice(1)); });
 
 /* ============ boot ============ */
 (async function boot() {
