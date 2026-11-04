@@ -434,6 +434,17 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .push-ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--gold-soft);color:var(--gold-ink)}
 .push-card .icon-btn{width:32px;height:32px;color:var(--muted)}
 .steps{margin:0;padding-inline-start:22px;display:flex;flex-direction:column;gap:8px}
+.hero-cover{display:block;width:98px;height:98px;margin:2px auto 12px;border-radius:50%;padding:3px;background:conic-gradient(from 200deg,var(--bride),var(--gold),var(--groom),var(--gold),var(--bride));box-shadow:0 10px 26px rgb(0 0 0 / .14)}
+.hero-cover img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:3px solid var(--bg)}
+.sug-im{width:52px;height:52px;border-radius:12px;object-fit:cover;flex:none;margin-inline-start:6px}
+.cover-big{width:100%;border-radius:18px;display:block}
+.cv-wrap{display:grid;place-items:center;padding:6px 0}
+.cv-crop{position:relative;width:min(240px,68vw);aspect-ratio:1;border-radius:50%;overflow:hidden;background:var(--surface-2);touch-action:none;box-shadow:0 0 0 4px var(--gold-soft),0 12px 30px rgb(0 0 0 / .16)}
+.cv-crop img{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:100%;height:100%;object-fit:cover;user-select:none;-webkit-user-select:none;-webkit-user-drag:none;pointer-events:none}
+.cv-crop img.live{max-width:none;object-fit:fill}
+.cv-pick{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-weight:600}
+.cv-tools input[type=range]{width:100%;accent-color:var(--gold)}
+.jn-cover{width:48px;height:48px;border-radius:50%;object-fit:cover;flex:none;box-shadow:0 0 0 3px var(--c,var(--gold))}
 /* media */
 .tile{background-size:cover;background-position:center}
 .tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
@@ -938,10 +949,12 @@ function vHome() {
 
   return `<div class="stack">
     <section class="hero-c">
+      ${heroCover()}
       <div class="hero-date">${esc(fmtDate(w.date))}${w.venue ? " · " + esc(w.venue) + (w.venue_city ? ", " + esc(w.venue_city) : "") : ""}</div>
       <h1 class="names"><span>${esc(coupleName("groom"))}</span><span class="amp">&amp;</span><span>${esc(coupleName("bride"))}</span></h1>
       <div class="cd-row">${ringsSvg(rv ? 1 : dayProgress())}<span>${rv ? "שני הצדדים נפגשו" : "עד החשיפה"}</span><b data-countdown dir="ltr">${rv ? "מזל טוב!" : fmtLeft(revealMs() - now)}</b></div>
     </section>
+    ${coverCards()}
     ${!rv ? statusRow(false) : ""}
 
     <section class="card moments">
@@ -1001,6 +1014,7 @@ function vHomeGuest() {
   for (const it of items) { const t = itemTime(it.t); if (isNaN(t)) continue; if (t <= now) cur = it; else { nxt = it; break; } }
   return `<div class="stack">
     <section class="hero-c">
+      ${heroCover()}
       <div class="hero-date">${esc(fmtDate(w.date))}${w.venue ? " · " + esc(w.venue) + (w.venue_city ? ", " + esc(w.venue_city) : "") : ""}</div>
       <h1 class="names"><span>${esc(coupleName("groom"))}</span><span class="amp">&amp;</span><span>${esc(coupleName("bride"))}</span></h1>
       <div class="cd-row">${ringsSvg(rv ? 1 : dayProgress())}<span>${rv ? "מזל טוב!" : "עד החופה"}</span>${rv ? "" : `<b data-countdown dir="ltr">${fmtLeft(revealMs() - now)}</b>`}</div>
@@ -1032,6 +1046,140 @@ function vAlbumGuest() {
     ${rv ? `<div class="seg" role="group" style="margin-bottom:14px"><button data-act="album-tab" data-tab="all" aria-pressed="${S.albumTab === "all"}">כל החתונה · ${all.length}</button><button data-act="album-tab" data-tab="guest" aria-pressed="${S.albumTab === "guest"}">האורחים · ${mine.length}</button></div>` : ""}
     ${list.length ? `<div class="grid">${(S.albumTab === "guest" ? list : list).map(p => tileHtml(p, { ribbon: rv && S.albumTab === "all" })).join("")}</div>`
       : `<div class="empty"><h3>עוד אין כאן תמונות</h3><p>צלמו את הרגעים שלכם מהחתונה. הזוג יקבל את כולן.</p><button class="btn" data-act="pick" style="margin-top:16px">${ic("camera", 20)}צילום או העלאה</button></div>`}`;
+}
+
+/* ============ couple photo ============ */
+// One photo of the two of them for the whole wedding: home, join screen, QR card, recap and the invite link preview.
+const canCover = () => !!(S.st && S.st.me && S.st.me.can_cover);
+const coverSrc = big => { const w = W(), p = big ? (w.cover || w.cover_thumb) : (w.cover_thumb || w.cover); return p ? pub(p) : ""; };
+function heroCover() {
+  const u = coverSrc(false);
+  if (!u) return "";
+  return `<button class="hero-cover" data-act="cover" aria-label="תמונת הזוג"><img src="${u}" alt="" decoding="async"></button>`;
+}
+function coverSuggestion() {
+  // after the chuppah: the most-loved photo from the first hours together
+  const w = W(); if (!isRevealed() || w.cover_photo || store.get("cover.sug." + w.id, false)) return null;
+  const rt = recapRevealT(); if (!isFinite(rt)) return null;
+  return S.st.photos.filter(p => p.mode === "full" && p.kind !== "video" && PATH_RE.test(p.path || "") && /\.(jpg|webp)$/.test(p.path) && p.vis !== "secret"
+      && ms(p.created_at) >= rt - 5 * 60e3 && ms(p.created_at) <= rt + 3 * 3600e3)
+    .sort((a, b) => (b.hearts || 0) - (a.hearts || 0) || ms(a.created_at) - ms(b.created_at))[0] || null;
+}
+function coverCards() {
+  if (!canCover()) return "";
+  const w = W(), sug = coverSuggestion();
+  if (sug) return `<div class="push-card cover-sug"><img class="sug-im" src="${pub(sug.thumb_path || sug.path)}" alt=""><span class="grow"><b>התמונה הראשונה שלכם ביחד?</b><span>הכי אהובה מהחופה. לשים אותה כתמונת החתונה?</span></span>
+    <button class="btn sm" data-act="cover-sug" data-id="${sug.id}">כן</button><button class="icon-btn" data-act="cover-sug-hide" aria-label="לא">${ic("x", 16)}</button></div>`;
+  if (!w.cover && !store.get("cover.hide." + w.id, false))
+    return `<div class="push-card"><span class="push-ic">${ic("heart", 20)}</span><span class="grow"><b>תמונה שלכם לחתונה</b><span>תופיע כאן, בקישור ההזמנה ובסרטון הסיכום</span></span>
+    <button class="btn sm" data-act="cover">הוספה</button><button class="icon-btn" data-act="cover-hide" aria-label="לא עכשיו">${ic("x", 16)}</button></div>`;
+  return "";
+}
+function coverView() {
+  const u = coverSrc(true); if (!u) return;
+  openSheet(`${coupleName("groom")} & ${coupleName("bride")}`, `<div class="stack"><img class="cover-big" src="${u}" alt=""></div>`);
+}
+function sqCrop(src, crop, size) {
+  const c = document.createElement("canvas"); c.width = c.height = size;
+  const x = c.getContext("2d"); x.imageSmoothingQuality = "high";
+  x.drawImage(src, crop.x, crop.y, crop.s, crop.s, 0, 0, size, size);
+  return c;
+}
+async function shareCardBlob(src, crop) {
+  // 1200×630 for link previews; everything important sits in the middle square, which WhatsApp shows when it crops
+  const Wd = 1200, Ht = 630, c = document.createElement("canvas"); c.width = Wd; c.height = Ht;
+  const x = c.getContext("2d"); await document.fonts.ready;
+  const bg = x.createLinearGradient(0, 0, 0, Ht); bg.addColorStop(0, "#241A27"); bg.addColorStop(1, "#120D14"); x.fillStyle = bg; x.fillRect(0, 0, Wd, Ht);
+  const glow = x.createRadialGradient(Wd / 2, 210, 40, Wd / 2, 210, 520); glow.addColorStop(0, "rgba(201,166,90,.22)"); glow.addColorStop(1, "rgba(201,166,90,0)"); x.fillStyle = glow; x.fillRect(0, 0, Wd, Ht);
+  const cx = Wd / 2, cy = 205, r = 150;
+  x.lineWidth = 7;
+  x.strokeStyle = "#C2557A"; x.beginPath(); x.arc(cx - 14, cy, r + 16, 0, Math.PI * 2); x.stroke();
+  x.strokeStyle = "#2E7F83"; x.beginPath(); x.arc(cx + 14, cy, r + 16, 0, Math.PI * 2); x.stroke();
+  x.save(); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.clip(); x.imageSmoothingQuality = "high";
+  x.drawImage(src, crop.x, crop.y, crop.s, crop.s, cx - r, cy - r, r * 2, r * 2); x.restore();
+  x.strokeStyle = "#C9A65A"; x.lineWidth = 4; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke();
+  x.textAlign = "center"; x.direction = "rtl"; x.fillStyle = "#F6EEF2";
+  const names = `${coupleName("groom")} & ${coupleName("bride")}`;
+  let fs = 78; x.font = `500 ${fs}px "Frank Ruhl Libre", serif`;
+  while (x.measureText(names).width > 1040 && fs > 40) { fs -= 4; x.font = `500 ${fs}px "Frank Ruhl Libre", serif`; }
+  x.fillText(names, cx, 470);
+  x.font = '400 32px "Rubik", sans-serif'; x.fillStyle = "#C9A65A"; x.fillText(fmtDate(W().date), cx, 525);
+  x.font = '400 24px "Rubik", sans-serif'; x.fillStyle = "#B9A9B5"; x.fillText("שני צדדים · אלבום החתונה", cx, 590);
+  return toBlob(c, "image/jpeg", .86);
+}
+async function saveCover(src, crop, photo) {
+  // three files: a round avatar, a large copy and the link-preview card
+  const base = `${W().id}/cover-${uuid()}`, type = webpOK() ? "image/webp" : "image/jpeg", ext = type === "image/webp" ? "webp" : "jpg";
+  const share = `${base}-share.jpg`;
+  let path, thumb;
+  if (photo) { path = photo.path; thumb = null; }
+  else {
+    path = `${base}.${ext}`; thumb = `${base}-t.${ext}`;
+    await putFile(thumb, await toBlob(sqCrop(src, crop, 480), type, .86), type);
+    await putFile(path, await toBlob(fit(src, 1600), type, .84), type);
+  }
+  if (photo) { thumb = `${base}-t.${ext}`; await putFile(thumb, await toBlob(sqCrop(src, crop, 480), type, .86), type); }
+  await putFile(share, await shareCardBlob(src, crop), "image/jpeg");
+  return rpc("set_cover", { p_token: S.token, p_path: path, p_thumb: thumb, p_share: share, p_photo: photo ? photo.id : null });
+}
+const autoCrop = (w, h) => { const s = Math.min(w, h); return { x: (w - s) / 2, y: h > w ? (h - s) * .28 : 0, s }; }; // faces sit high in portraits
+async function useAsCover(p) {
+  if (!p) return;
+  toast("מכינים…", "heart");
+  try {
+    const im = await loadForCanvas(pub(p.path)), w = im.width, h = im.height;
+    if (await mutate(() => saveCover(im, autoCrop(w, h), p), "זו תמונת החתונה עכשיו")) store.set("cover.sug." + W().id, true);
+  } catch (e) { console.warn(e); toast("לא הצלחנו. נסו שוב", "x"); }
+}
+function coverSheet() {
+  if (!canCover()) return coverView();
+  const w = W(), has = !!w.cover;
+  let src = null, iw = 0, ih = 0, z = 1, ox = 0, oy = 0;
+  openSheet("תמונת הזוג", `<div class="stack">
+    <p class="small muted">תמונה של שניכם. היא תופיע במסך הבית, בתצוגה של קישור ההזמנה, בכרטיס ה-QR ובסרטון הסיכום. <b>שני הצדדים רואים אותה מיד</b>, אז עדיף מהאירוסין ולא מהיום עצמו.</p>
+    <div class="cv-wrap"><div class="cv-crop" id="cv-crop">${has ? `<img id="cv-img" src="${coverSrc(false)}" alt="" draggable="false">` : `<img id="cv-img" alt="" draggable="false" hidden>`}
+      <button class="cv-pick" id="cv-pick" ${has ? "hidden" : ""}>${ic("camera", 30, 1.5)}<span>בחירת תמונה</span></button></div></div>
+    <div class="cv-tools" id="cv-tools" hidden><input type="range" id="cv-zoom" min="1" max="3" step="0.01" value="1" aria-label="הגדלה"><p class="small muted" style="text-align:center">גררו כדי למרכז את הפנים</p></div>
+    <button class="btn block gold" id="cv-save" ${has ? "hidden" : "disabled"}>שמירה</button>
+    <button class="btn ghost block" id="cv-change">${ic("camera", 18)}${has ? "החלפת תמונה" : "בחירה מהגלריה"}</button>
+    ${has ? `<button class="btn line block" id="cv-del">הסרת התמונה</button>` : ""}
+    <input type="file" id="cv-file" accept="image/*" hidden>
+  </div>`, sh => {
+    const box = $("#cv-crop", sh), img = $("#cv-img", sh), file = $("#cv-file", sh), save = $("#cv-save", sh), zoom = $("#cv-zoom", sh);
+    const D = () => box.clientWidth;
+    const base = () => D() / Math.min(iw, ih);
+    const clamp = () => { const s = base() * z, mx = Math.max(0, (iw * s - D()) / 2), my = Math.max(0, (ih * s - D()) / 2); ox = Math.max(-mx, Math.min(mx, ox)); oy = Math.max(-my, Math.min(my, oy)); };
+    const draw = () => { clamp(); const s = base() * z; img.style.width = iw * s + "px"; img.style.height = ih * s + "px"; img.style.transform = `translate(calc(-50% + ${ox}px), calc(-50% + ${oy}px))`; };
+    const pick = () => file.click();
+    $("#cv-pick", sh).onclick = pick; $("#cv-change", sh).onclick = pick;
+    file.onchange = async () => {
+      const f = file.files && file.files[0]; file.value = ""; if (!f) return;
+      try { src = await loadBitmap(f); } catch { return toast("לא הצלחנו לפתוח את התמונה", "x"); }
+      iw = src.width || src.naturalWidth; ih = src.height || src.naturalHeight; z = 1; zoom.value = 1;
+      const ac = autoCrop(iw, ih); ox = 0; oy = ((ih - ac.s) / 2 - ac.y) * base();
+      const prev = fit(src, 1400); img.src = prev.toDataURL("image/jpeg", .9); img.hidden = false; img.classList.add("live");
+      $("#cv-pick", sh).hidden = true; $("#cv-tools", sh).hidden = false; save.hidden = false; save.disabled = false; draw();
+    };
+    zoom.oninput = () => { z = +zoom.value; draw(); };
+    let drag = null;
+    box.addEventListener("pointerdown", e => { if (!src) return; drag = { x: e.clientX, y: e.clientY, ox, oy }; box.setPointerCapture(e.pointerId); });
+    box.addEventListener("pointermove", e => { if (!drag) return; ox = drag.ox + (e.clientX - drag.x); oy = drag.oy + (e.clientY - drag.y); draw(); });
+    const end = () => { drag = null; }; box.addEventListener("pointerup", end); box.addEventListener("pointercancel", end);
+    save.onclick = async () => {
+      if (!src) return;
+      const s = base() * z, side = D() / s;
+      const crop = { s: side, x: iw / 2 - ox / s - side / 2, y: ih / 2 - oy / s - side / 2 };
+      crop.x = Math.max(0, Math.min(iw - side, crop.x)); crop.y = Math.max(0, Math.min(ih - side, crop.y));
+      save.disabled = true; save.innerHTML = `<span class="spin"></span>שומרים…`;
+      if (await mutate(() => saveCover(src, crop, null), "התמונה נשמרה")) closeSheet();
+      else { save.disabled = false; save.textContent = "שמירה"; }
+    };
+    const del = $("#cv-del", sh);
+    if (del) del.onclick = async () => {
+      if (!del.dataset.sure) { del.dataset.sure = 1; del.textContent = "בטוחים? לחצו שוב להסרה"; return; }
+      if (await mutate(() => rpc("set_cover", { p_token: S.token, p_path: null, p_thumb: null, p_share: null, p_photo: null }), "התמונה הוסרה")) closeSheet();
+    };
+  });
 }
 
 /* ============ recap video ============ */
@@ -1561,6 +1709,7 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
   const gold = "#C9A65A", groomC = "#2E7F83", brideC = "#C2557A";
   const names = `${coupleName("groom")} & ${coupleName("bride")}`;
   const dateStr = fmtDate(W().date);
+  let coverIm = null; try { if (W().cover_thumb) coverIm = await loadForCanvas(pub(W().cover_thumb)); } catch {}
   const ease = v => v < 0 ? 0 : v > 1 ? 1 : v * v * (3 - 2 * v);
   const easeOut = v => v < 0 ? 0 : v > 1 ? 1 : 1 - Math.pow(1 - v, 3);
   const srcOf = m => m.kind === "vid" ? (m.v.readyState >= 2 ? m.v : m.im) : m.im;
@@ -1588,6 +1737,14 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
     x.strokeStyle = groomC; x.beginPath(); x.arc(cx + r * .42, cy, r, 0, Math.PI * 2); x.stroke();
     x.fillStyle = gold; x.beginPath(); x.moveTo(cx - r * .42, cy - r - r * .32); x.lineTo(cx - r * .42 + r * .2, cy - r - r * .1); x.lineTo(cx - r * .42, cy - r + r * .14); x.lineTo(cx - r * .42 - r * .2, cy - r - r * .1); x.fill();
     x.globalAlpha = 1;
+  };
+  const portrait = (cx, cy, r, a) => {
+    if (!coverIm) return rings(cx, cy, r * .62, a);
+    x.save(); x.globalAlpha = a; x.lineWidth = r * .07;
+    x.strokeStyle = brideC; x.beginPath(); x.arc(cx - r * .09, cy, r * 1.1, 0, Math.PI * 2); x.stroke();
+    x.strokeStyle = groomC; x.beginPath(); x.arc(cx + r * .09, cy, r * 1.1, 0, Math.PI * 2); x.stroke();
+    x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.clip(); x.drawImage(coverIm, cx - r, cy - r, r * 2, r * 2); x.restore();
+    x.save(); x.globalAlpha = a; x.strokeStyle = gold; x.lineWidth = 5; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.stroke(); x.restore();
   };
   const title = (txt, size, y, color, a, font = "Frank Ruhl Libre", weight = 500) => {
     if (a <= 0) return;
@@ -1654,7 +1811,7 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
       const a = 1 - ease((t - intro.dur + .2) / (FADE + .2));
       x.globalAlpha = a * (t < intro.dur - 1.2 ? 1 : 1 - .5 * ease((t - intro.dur + 1.2) / 1.2)); bg(); x.globalAlpha = 1;
       const ta = a * ease(t / .9);
-      rings(Wd / 2, Ht * .38 - 20 * (1 - easeOut(t / 1.4)), 110, ta);
+      portrait(Wd / 2, Ht * .36 - 20 * (1 - easeOut(t / 1.4)), 178, ta);
       title(names, 128, Ht * .56, "#F6EEF2", ta);
       title(dateStr, 46, Ht * .62, gold, a * ease((t - .5) / .8), "Rubik", 400);
     }
@@ -1662,7 +1819,7 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
     if (t > out.t - .5) {
       const a = ease((t - out.t + .5) / 1.1);
       x.globalAlpha = a * .92; x.fillStyle = "#120D14"; x.fillRect(0, 0, Wd, Ht); x.globalAlpha = 1;
-      rings(Wd / 2, Ht * .42, 92, a);
+      portrait(Wd / 2, Ht * .4, 150, a);
       title(names, 112, Ht * .58, "#F6EEF2", a);
       title("שני צדדים · " + dateStr, 40, Ht * .64, gold, a * ease((t - out.t) / .8), "Rubik", 400);
     }
@@ -2179,9 +2336,10 @@ function renderJoin(prefill = "") {
     const guest = info.team === "guest";
     const c = guest ? "var(--gold)" : info.team === "groom" ? "var(--groom)" : "var(--bride)", cs = guest ? "var(--gold-soft)" : info.team === "groom" ? "var(--groom-soft)" : "var(--bride-soft)";
     const name = info.team === "groom" ? info.groom : info.bride;
+    const mark = info.cover && PATH_RE.test(info.cover) ? `<img class="jn-cover" src="${pub(info.cover)}" alt="">` : `<span class="ring"></span>`;
     $("#jn-info").innerHTML = guest
-      ? `<div class="team-banner" style="--c:${c};background:${cs}"><span class="ring"></span><span><b>ברוכים הבאים לחתונה של ${esc(info.groom)} ו${esc(info.bride)}</b><span class="small muted">צלמו ושתפו. כל התמונות נשמרות לזוג</span></span></div>`
-      : `<div class="team-banner" style="--c:${c};background:${cs}"><span class="ring"></span><span><b>${teamLabel(info.team)} של ${esc(name)}</b><span class="small muted">החתונה של ${esc(info.groom)} ו${esc(info.bride)} · ${esc(fmtDate(info.date))}</span></span></div>`;
+      ? `<div class="team-banner" style="--c:${c};background:${cs}">${mark}<span><b>ברוכים הבאים לחתונה של ${esc(info.groom)} ו${esc(info.bride)}</b><span class="small muted">צלמו ושתפו. כל התמונות נשמרות לזוג</span></span></div>`
+      : `<div class="team-banner" style="--c:${c};background:${cs}">${mark}<span><b>${teamLabel(info.team)} של ${esc(name)}</b><span class="small muted">החתונה של ${esc(info.groom)} ו${esc(info.bride)} · ${esc(fmtDate(info.date))}</span></span></div>`;
     $("#jn-couple").textContent = `אני ${name}`;
     $("#jn-couple").closest(".seg").hidden = guest;
     $("#jn-rest").hidden = false;
@@ -2313,8 +2471,15 @@ async function tableCard() {
   const x = c.getContext("2d"); await document.fonts.ready;
   const g = x.createLinearGradient(0, 0, 0, H0); g.addColorStop(0, "#FBF7F9"); g.addColorStop(1, "#F1E4EA"); x.fillStyle = g; x.fillRect(0, 0, W0, H0);
   x.strokeStyle = "#B08A3A"; x.lineWidth = 4; x.strokeRect(50, 50, W0 - 100, H0 - 100);
-  const ring = (cx, col) => { x.beginPath(); x.arc(cx, 300, 70, 0, Math.PI * 2); x.strokeStyle = col; x.lineWidth = 16; x.stroke(); };
-  ring(655, "#22686C"); ring(585, "#B2486A");
+  let cov = null; try { if (W().cover_thumb) cov = await loadForCanvas(pub(W().cover_thumb)); } catch {}
+  if (cov) {
+    x.lineWidth = 9; [["#B2486A", -16], ["#22686C", 16]].forEach(([col, d]) => { x.strokeStyle = col; x.beginPath(); x.arc(W0 / 2 + d, 290, 178, 0, Math.PI * 2); x.stroke(); });
+    x.save(); x.beginPath(); x.arc(W0 / 2, 290, 160, 0, Math.PI * 2); x.clip(); x.drawImage(cov, W0 / 2 - 160, 130, 320, 320); x.restore();
+    x.strokeStyle = "#B08A3A"; x.lineWidth = 5; x.beginPath(); x.arc(W0 / 2, 290, 160, 0, Math.PI * 2); x.stroke();
+  } else {
+    const ring = (cx, col) => { x.beginPath(); x.arc(cx, 300, 70, 0, Math.PI * 2); x.strokeStyle = col; x.lineWidth = 16; x.stroke(); };
+    ring(655, "#22686C"); ring(585, "#B2486A");
+  }
   x.fillStyle = "#241821"; x.textAlign = "center"; x.direction = "rtl";
   x.font = '500 96px "Frank Ruhl Libre", serif'; x.fillText(`${coupleName("groom")} & ${coupleName("bride")}`, W0 / 2, 520);
   x.font = '400 46px "Rubik", sans-serif'; x.fillStyle = "#6E6068"; x.fillText("צלמו את הרגעים שלכם ושתפו אותם איתנו", W0 / 2, 610);
@@ -3001,6 +3166,11 @@ function settingsSheet(focus) {
   let role = me.role;
   openSheet("הגדרות", `
     <div class="stack">
+      ${canCover() ? `<section class="card stack">
+        <h3 class="card-t">תמונת הזוג</h3>
+        <div class="row" style="align-items:center;gap:12px">${coverSrc(false) ? `<img class="jn-cover" src="${coverSrc(false)}" alt="">` : ""}<p class="small muted grow">${coverSrc(false) ? "מופיעה במסך הבית, בהזמנות ובסרטון הסיכום." : "תמונה של שניכם למסך הבית, להזמנות ולסרטון הסיכום."}</p></div>
+        <button class="btn ghost block" data-act="cover">${ic("heart", 18)}${coverSrc(false) ? "החלפה או הסרה" : "הוספת תמונה"}</button>
+      </section>` : ""}
       <section class="card stack">
         <h3 class="card-t">רגע החשיפה</h3>
         <p class="small muted">כל צד רואה רק את התמונות של עצמו. ברגע החשיפה הכל נפתח לשני הצדדים, חוץ ממה שסומן כסוד. טיזרים נראים מטושטשים עד אז.</p>
@@ -3192,6 +3362,10 @@ document.addEventListener("click", async e => {
     case "status": return statusSheet();
     case "slideshow": return slideshow();
     case "recap": return recapSheet();
+    case "cover": closeSheet(); return coverSheet();
+    case "cover-hide": store.set("cover.hide." + W().id, true); return render();
+    case "cover-sug": return useAsCover(photoById(id));
+    case "cover-sug-hide": store.set("cover.sug." + W().id, true); return render();
     case "push-on": closeSheet(); return enablePush();
     case "push-off": closeSheet(); return disablePush();
     case "push-hide": store.set("push.hide", true); return render();
