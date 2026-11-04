@@ -419,7 +419,8 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .recap-card span span,.recap-card .grow span{font-size:13.5px;color:#CDBFCA}
 .recap-ic{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;flex:none;background:linear-gradient(135deg,#E2C27A,#B08A3A);color:#2A1F08}
 .recap-prev{display:grid;place-items:center}
-.recap-prev canvas{width:180px;height:320px;border-radius:18px;background:#120D14;box-shadow:0 10px 30px rgb(0 0 0 / .25)}
+.recap-prev canvas,.recap-prev video{width:180px;height:320px;border-radius:18px;background:#120D14;box-shadow:0 10px 30px rgb(0 0 0 / .25);object-fit:cover}
+.recap-prev [hidden]{display:none}
 .push-card{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 6px;border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}
 .push-card b{display:block;font-weight:600;font-size:15px}
 .push-card .grow span{font-size:13px;color:var(--muted);line-height:1.35;display:block}
@@ -1024,29 +1025,88 @@ function vAlbumGuest() {
 }
 
 /* ============ recap video ============ */
-const RECAP_MAX = 24;
-function recapPool() { return (isGuest() ? guestFeed() : sharedList()).filter(p => p.mode === "full" && p.kind !== "video" && p.path); }
-function recapPick() {
-  // the most-loved photos, spread across the day, then shown in the order they happened
-  const all = recapPool().slice().sort((a, b) => ms(a.created_at) - ms(b.created_at));
-  if (all.length <= RECAP_MAX) return all;
-  const buckets = Array.from({ length: RECAP_MAX }, () => []);
-  all.forEach((p, i) => buckets[Math.floor(i * RECAP_MAX / all.length)].push(p));
-  return buckets.map(b => b.slice().sort((x, y) => (y.hearts || 0) - (x.hearts || 0))[0]).filter(Boolean);
+// Beat-synced: every cut lands on the music. 96 BPM, one bar = 2.5s.
+const RC = { BPM: 96, get BEAT() { return 60 / this.BPM; }, get BAR() { return this.BEAT * 4; } };
+const RECAP_LEN = { short: { items: 10, vids: 2, label: "קצר · לסטורי" }, full: { items: 24, vids: 5, label: "מלא" } };
+const RECAP_MAX = RECAP_LEN.full.items;
+function recapPool() { return (isGuest() ? guestFeed() : sharedList()).filter(p => p.mode === "full" && p.path); }
+const recapRevealT = () => { const m = Date.parse(W().revealed_at || ""); return isNaN(m) ? revealMs() : m; };
+function recapChapter(p) {
+  if (ms(p.created_at) < recapRevealT() && (p.team === "groom" || p.team === "bride")) return p.team;
+  return "together";
 }
+function spreadPick(list, n) {
+  // n items spread evenly across the day; in each slice of time the most-loved one wins
+  if (list.length <= n) return list.slice();
+  const b = Array.from({ length: n }, () => []);
+  list.forEach((p, i) => b[Math.floor(i * n / list.length)].push(p));
+  return b.map(x => x.slice().sort((a, c) => (c.hearts || 0) - (a.hearts || 0))[0]).filter(Boolean);
+}
+function recapPick(len = "full") {
+  const L = RECAP_LEN[len] || RECAP_LEN.full;
+  const all = recapPool().slice().sort((a, b) => ms(a.created_at) - ms(b.created_at));
+  const vids = all.filter(p => p.kind === "video" && (!p.duration || p.duration >= 2))
+    .sort((a, b) => (b.hearts || 0) - (a.hearts || 0) || ms(b.created_at) - ms(a.created_at)).slice(0, L.vids);
+  const photos = all.filter(p => p.kind !== "video");
+  const room = Math.max(3, L.items - vids.length);
+  // every chapter gets its fair share, and at least a few moments, so both sides are in the film
+  const ch = { groom: [], bride: [], together: [] };
+  photos.forEach(p => ch[recapChapter(p)].push(p));
+  const keys = Object.keys(ch).filter(k => ch[k].length);
+  const quota = {}; let left = room;
+  keys.forEach(k => { quota[k] = Math.min(ch[k].length, 3); left -= quota[k]; });
+  while (left > 0) {
+    const k = keys.filter(k => quota[k] < ch[k].length).sort((a, b) => quota[a] / ch[a].length - quota[b] / ch[b].length)[0];
+    if (!k) break; quota[k]++; left--;
+  }
+  const chosen = keys.flatMap(k => spreadPick(ch[k], quota[k])).concat(vids);
+  const order = { groom: 0, bride: 1, together: 2 };
+  return chosen.sort((a, b) => order[recapChapter(a)] - order[recapChapter(b)] || ms(a.created_at) - ms(b.created_at));
+}
+const recapEstimate = pick => {
+  const bars = 2 + pick.reduce((s, p) => s + (p.kind === "video" ? 2 : 1), 0) + 2
+    + (pick.some(p => recapChapter(p) === "groom") && pick.some(p => recapChapter(p) === "bride") ? 2 : 0);
+  return Math.round(bars * RC.BAR);
+};
 async function loadForCanvas(url) {
   const r = await fetch(url, { mode: "cors" }); if (!r.ok) throw new Error("img");
   const b = await r.blob();
   try { return await createImageBitmap(b); } catch { const im = new Image(); im.src = URL.createObjectURL(b); await im.decode(); return im; }
 }
-function recapMusic(ac, dest, total) {
-  // original music generated on the device: warm pad + gentle arpeggio, D major, I–V–vi–IV
-  const t0 = ac.currentTime + .15, bar = 60 / 84 * 4;
-  const master = ac.createGain(); master.gain.value = 0; master.connect(dest);
-  master.gain.setValueAtTime(0, t0); master.gain.linearRampToValueAtTime(.9, t0 + 2.5);
-  master.gain.setValueAtTime(.9, t0 + total - 3.5); master.gain.linearRampToValueAtTime(0, t0 + total);
-  const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2200; lp.Q.value = .4; lp.connect(master);
-  const verb = ac.createDelay(1); verb.delayTime.value = .23; const fb = ac.createGain(); fb.gain.value = .32;
+function loadClip(p) {
+  // a muted <video> parked at the best part of the clip, ready to play on cue
+  return new Promise((res, rej) => {
+    const v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.crossOrigin = "anonymous"; v.preload = "auto";
+    const to = setTimeout(() => rej(new Error("clip timeout")), 25000);
+    v.addEventListener("error", () => { clearTimeout(to); rej(new Error("clip")); }, { once: true });
+    v.addEventListener("loadedmetadata", () => {
+      const d = v.duration;
+      if (!isFinite(d) || d < 2) { clearTimeout(to); return rej(new Error("short")); }
+      const bars = d >= RC.BAR * 2 + .3 ? 2 : 1, len = bars * RC.BAR;
+      const start = Math.max(0, Math.min(d - len - .15, d * .3));   // skip the shaky first second, keep the action
+      v.addEventListener("seeked", () => { clearTimeout(to); res({ v, bars, start }); }, { once: true });
+      v.currentTime = start;
+    }, { once: true });
+    v.src = pub(p.path); v.load();
+  });
+}
+function blurredOf(im) {
+  // cheap blur that works on every phone: shrink a lot, then let the canvas scale it back up
+  const s = document.createElement("canvas"); s.width = 36; s.height = 64;
+  const c = s.getContext("2d"); const iw = im.videoWidth || im.width, ih = im.videoHeight || im.height;
+  const k = Math.max(36 / iw, 64 / ih); c.drawImage(im, (36 - iw * k) / 2, (64 - ih * k) / 2, iw * k, ih * k);
+  return s;
+}
+function recapMusic(ac, dest, t0, total, drumsAt, drumsEnd) {
+  // original music generated on the device: warm pad, arpeggio and soft drums, D major I–V–vi–IV
+  const bar = RC.BAR, beat = RC.BEAT;
+  const master = ac.createGain(); master.connect(dest);
+  master.gain.setValueAtTime(0, t0); master.gain.linearRampToValueAtTime(.9, t0 + 2.2);
+  master.gain.setValueAtTime(.9, t0 + total - 3); master.gain.linearRampToValueAtTime(0, t0 + total);
+  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; comp.connect(master);
+  const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2400; lp.Q.value = .4; lp.connect(comp);
+  const verb = ac.createDelay(1); verb.delayTime.value = beat * .75; const fb = ac.createGain(); fb.gain.value = .3;
   verb.connect(fb); fb.connect(verb); verb.connect(lp);
   const hz = m => 440 * Math.pow(2, (m - 69) / 12);
   const chords = [[50, 57, 62, 66, 69], [45, 57, 61, 64, 69], [47, 59, 62, 66, 71], [43, 55, 59, 62, 67]]; // D A Bm G
@@ -1056,35 +1116,79 @@ function recapMusic(ac, dest, total) {
     g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol, at + atk); g.gain.setTargetAtTime(0, at + dur - rel, rel / 3);
     o.connect(g); g.connect(lp); g.connect(verb); o.start(at); o.stop(at + dur + rel);
   };
-  for (let t = 0, i = 0; t < total; t += bar, i++) {
-    const c = chords[i % 4], at = t0 + t;
-    tone(hz(c[0] - 12), at, bar, "sine", .16, .6, .9);
-    c.slice(1, 4).forEach(n => tone(hz(n), at, bar, "triangle", .035, .9, 1.1));
+  let noise = null;
+  try { noise = ac.createBuffer(1, ac.sampleRate * .3, ac.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } catch {}
+  const kick = at => {
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = "sine";
+    o.frequency.setValueAtTime(120, at); o.frequency.exponentialRampToValueAtTime(42, at + .16);
+    g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(.55, at + .005); g.gain.exponentialRampToValueAtTime(.0001, at + .32);
+    o.connect(g); g.connect(comp); o.start(at); o.stop(at + .35);
+  };
+  const hat = (at, vol, len) => {
+    if (!noise) return;
+    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise; f.type = "highpass"; f.frequency.value = len > .1 ? 1800 : 7000;
+    g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(.0001, at + len);
+    s.connect(f); f.connect(g); g.connect(comp); g.connect(verb); s.start(at); s.stop(at + len + .02);
+  };
+  const lastBar = Math.floor(total / bar) - 1;
+  for (let i = 0; i * bar < total; i++) {
+    const at = t0 + i * bar;
+    if (i >= lastBar) { // a held tonic to finish
+      tone(hz(38), at, bar * 1.6, "sine", .16, .3, 1.4);
+      [62, 66, 69, 74].forEach(n => tone(hz(n), at, bar * 1.6, "triangle", .04, .4, 1.6));
+      break;
+    }
+    const c = chords[i % 4];
+    tone(hz(c[0] - 12), at, bar, "sine", .15, .5, .9);
+    c.slice(1, 4).forEach(n => tone(hz(n), at, bar, "triangle", .032, .8, 1.1));
     const arp = [c[1], c[2], c[3], c[4], c[3], c[2], c[4] + 12, c[3]];
-    arp.forEach((n, k) => tone(hz(n + 12), at + k * bar / 8, bar / 8 * 1.6, "sine", .045, .01, .35));
+    arp.forEach((n, k) => tone(hz(n + 12), at + k * bar / 8, bar / 8 * 1.6, "sine", .04, .01, .35));
+    const rel = at - t0;
+    if (rel >= drumsAt - .01 && rel < drumsEnd - .01) {
+      for (let b = 0; b < 4; b++) {
+        const bt = at + b * beat;
+        if (b === 0 || b === 2 || (b === 3 && i % 4 === 3)) kick(b === 3 ? bt + beat / 2 : bt);
+        if (b === 1 || b === 3) hat(bt, .09, .18);          // soft clap
+        hat(bt + beat / 2, .035, .05);                       // off-beat shaker
+      }
+    }
   }
   return master;
 }
 function recapSheet() {
-  const pick = recapPick();
-  if (pick.length < 3) return toast("צריך לפחות 3 תמונות לסרטון", "album");
+  const pool = recapPool();
+  if (pool.length < 3) return toast("צריך לפחות 3 תמונות לסרטון", "album");
+  let len = pool.length > 14 ? "full" : "short";
+  const info = () => {
+    const pick = recapPick(len), v = pick.filter(p => p.kind === "video").length;
+    return `${pick.length} רגעים${v ? `, מתוכם ${v} סרטונים` : ""}, בערך ${recapEstimate(pick)} שניות עם מוזיקה מקורית. ההכנה לוקחת בערך כמו אורך הסרטון, השאירו את המסך פתוח.`;
+  };
   openSheet("סרטון הסיכום", `<div class="stack">
-    <div class="recap-prev"><canvas id="rc-cv" width="270" height="480"></canvas></div>
-    <p class="small muted" id="rc-info">${pick.length} רגעים, הכי אהובים מכל שלבי היום, עם מוזיקה מקורית. בערך ${Math.round(pick.length * 2.6 + 7)} שניות. ההכנה לוקחת בערך כמו אורך הסרטון, השאירו את המסך פתוח.</p>
+    <div class="recap-prev"><canvas id="rc-cv" width="270" height="480"></canvas><video id="rc-vid" playsinline controls hidden></video></div>
+    ${pool.length > 10 ? `<div class="seg" role="group" id="rc-len">${Object.entries(RECAP_LEN).map(([k, o]) => `<button data-len="${k}" aria-pressed="${k === len}">${o.label}</button>`).join("")}</div>` : ""}
+    <p class="small muted" id="rc-info">${info()}</p>
     <div class="progress" id="rc-prog" hidden><i style="width:0"></i></div>
     <button class="btn block gold" id="rc-go">${ic("sparkle", 20)}יוצרים את הסרטון</button>
   </div>`, sh => {
-    const go = $("#rc-go", sh);
+    const go = $("#rc-go", sh), seg = $("#rc-len", sh);
+    if (seg) seg.onclick = e => {
+      const b = e.target.closest("[data-len]"); if (!b || go.disabled || go.dataset.file) return;
+      len = b.dataset.len; seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#rc-info", sh).textContent = info();
+    };
     go.onclick = async () => {
       if (go.dataset.file) { const r = await shareOrDownload(RECAP_FILE); if (r === "downloaded") toast("הסרטון ירד", "check"); return; }
       go.disabled = true; go.innerHTML = `<span class="spin"></span>מכינים…`;
+      if (seg) seg.style.opacity = ".5";
       $("#rc-prog", sh).hidden = false;
       try {
-        RECAP_FILE = await makeRecap(pick, $("#rc-cv", sh), p => { const b = $("#rc-prog i", sh); if (b) b.style.width = Math.round(p * 100) + "%"; });
+        RECAP_FILE = await makeRecap(recapPick(len), $("#rc-cv", sh), p => { const b = $("#rc-prog i", sh); if (b) b.style.width = Math.round(p * 100) + "%"; });
         go.dataset.file = "1"; go.disabled = false; go.innerHTML = `${ic("save", 20)}שמירה ושיתוף`;
-        $("#rc-info", sh).textContent = "מוכן! שמרו לגלריה או שתפו ישר לוואטסאפ.";
+        $("#rc-info", sh).textContent = "מוכן! צפו, ואז שמרו לגלריה או שתפו ישר לוואטסאפ.";
+        $("#rc-prog", sh).hidden = true;
+        const vid = $("#rc-vid", sh); vid.src = URL.createObjectURL(RECAP_FILE); vid.hidden = false; $("#rc-cv", sh).hidden = true;
       } catch (e) {
-        console.warn(e); go.disabled = false; go.innerHTML = `${ic("sparkle", 20)}נסו שוב`;
+        console.warn(e); go.disabled = false; go.innerHTML = `${ic("sparkle", 20)}נסו שוב`; if (seg) seg.style.opacity = "";
         toast(e && e.code === "too_big" ? "הטלפון הזה לא תומך ביצירת וידאו. נסו מטלפון אחר" : "לא הצלחנו ליצור את הסרטון. נסו שוב", "x");
       }
     };
@@ -1093,23 +1197,75 @@ function recapSheet() {
 let RECAP_FILE = null;
 async function makeRecap(pick, preview, onProg) {
   if (!canCompress()) throw new ApiError("too_big");
-  const Wd = 1080, Ht = 1920, SLIDE = 2.6, FADE = .7, INTRO = 3.2, OUTRO = 3.4;
-  const total = INTRO + pick.length * SLIDE + OUTRO;
+  const Wd = 1080, Ht = 1920, BAR = RC.BAR, FADE = .45;
   let ac = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); await ac.resume(); } catch { ac = null; }
-  const imgs = [];
-  for (let i = 0; i < pick.length; i++) { try { imgs.push(await loadForCanvas(pub(pick[i].path))); } catch { imgs.push(null); } onProg(i / pick.length * .12); }
+
+  // 1) load everything first, so nothing stalls once recording starts
+  const media = [];
+  for (let i = 0; i < pick.length; i++) {
+    const p = pick[i];
+    try {
+      if (p.kind === "video") {
+        const c = await loadClip(p);
+        let poster = null; try { if (p.thumb_path) poster = await loadForCanvas(pub(p.thumb_path)); } catch {}
+        media.push({ p, kind: "vid", ...c, im: poster });
+      } else media.push({ p, kind: "img", im: await loadForCanvas(pub(p.path)), bars: 1 });
+    } catch (e) { console.warn("recap skip", e); }
+    onProg((i + 1) / pick.length * .15);
+  }
+  if (media.length < 3) throw new Error("not enough media");
+  media.forEach(m => { const src = m.im || m.v; const w = m.kind === "vid" ? m.v.videoWidth : m.im.width, h = m.kind === "vid" ? m.v.videoHeight : m.im.height; m.wide = w / h > .8; if (m.wide) try { m.bg = blurredOf(src); } catch {} });
+
+  // 2) the timeline: intro · groom's side · bride's side · "together" split · together · outro
+  const segs = []; let t = 0;
+  const add = s => { s.t = t; s.dur = s.bars * BAR; segs.push(s); t += s.dur; };
+  add({ kind: "intro", bars: 2 });
+  const drumsAt = t;
+  const chapLabel = { groom: `הצד של ${coupleName("groom")}`, bride: `הצד של ${coupleName("bride")}`, together: "ביחד" };
+  const byCh = k => media.filter(m => recapChapter(m.p) === k);
+  const best = list => list.filter(m => m.kind === "img").sort((a, b) => (b.p.hearts || 0) - (a.p.hearts || 0))[0];
+  let chapIdx = 0;
+  const multi = ["groom", "bride", "together"].filter(k => byCh(k).length).length > 1;
+  for (const k of ["groom", "bride", "together"]) {
+    const list = byCh(k);
+    if (k === "together") {
+      const g = best(byCh("groom")), b = best(byCh("bride"));
+      if (g && b) add({ kind: "split", bars: 2, g, b });
+    }
+    list.forEach((m, i) => add({ kind: m.kind, bars: m.bars, m, chapter: multi && i === 0 && !(k === "together" && segs[segs.length - 1]?.kind === "split") ? chapLabel[k] : null, n: chapIdx++ }));
+  }
+  const drumsEnd = t;
+  add({ kind: "outro", bars: 2 });
+  const total = t + .6;
+
+  // 3) drawing
   const cv = document.createElement("canvas"); cv.width = Wd; cv.height = Ht;
   const x = cv.getContext("2d", { alpha: false }); const pv = preview && preview.getContext("2d");
+  x.imageSmoothingQuality = "high";
   await document.fonts.ready;
-  const cs = getComputedStyle(document.documentElement);
   const gold = "#C9A65A", groomC = "#2E7F83", brideC = "#C2557A";
   const names = `${coupleName("groom")} & ${coupleName("bride")}`;
   const dateStr = fmtDate(W().date);
-  const cover = (im, z, ox, oy, alpha) => {
-    if (!im) return;
-    const iw = im.width, ih = im.height, s = Math.max(Wd / iw, Ht / ih) * z;
-    const w = iw * s, h = ih * s;
-    x.globalAlpha = alpha; x.drawImage(im, (Wd - w) / 2 + ox, (Ht - h) / 2 + oy, w, h); x.globalAlpha = 1;
+  const ease = v => v < 0 ? 0 : v > 1 ? 1 : v * v * (3 - 2 * v);
+  const easeOut = v => v < 0 ? 0 : v > 1 ? 1 : 1 - Math.pow(1 - v, 3);
+  const srcOf = m => m.kind === "vid" ? (m.v.readyState >= 2 ? m.v : m.im) : m.im;
+  const dims = s => [s.videoWidth || s.width, s.videoHeight || s.height];
+  // draws media into a box: portrait fills it, wide photos float on a blurred copy of themselves
+  const place = (m, bx, by, bw, bh, z, ox, oy) => {
+    const s = srcOf(m); if (!s) return;
+    const [iw, ih] = dims(s); if (!iw || !ih) return;
+    if (m.wide && m.bg && bh / bw > 1.2) {
+      const k = Math.max(bw / 36, bh / 64) * 1.08; x.drawImage(m.bg, bx + (bw - 36 * k) / 2, by + (bh - 64 * k) / 2, 36 * k, 64 * k);
+      x.fillStyle = "rgba(18,13,20,.28)"; x.fillRect(bx, by, bw, bh);
+      const sc = bw * .94 / iw * z, w = iw * sc, h = ih * sc;
+      const px = bx + (bw - w) / 2 + ox * .4, py = by + (bh - h) / 2 - bh * .03 + oy * .4;
+      x.save(); x.shadowColor = "rgba(0,0,0,.45)"; x.shadowBlur = 40; x.shadowOffsetY = 12;
+      x.beginPath(); x.roundRect ? x.roundRect(px, py, w, h, 22) : x.rect(px, py, w, h); x.fillStyle = "#000"; x.fill(); x.restore();
+      x.save(); x.beginPath(); x.roundRect ? x.roundRect(px, py, w, h, 22) : x.rect(px, py, w, h); x.clip(); x.drawImage(s, px, py, w, h); x.restore();
+    } else {
+      const sc = Math.max(bw / iw, bh / ih) * z, w = iw * sc, h = ih * sc;
+      x.drawImage(s, bx + (bw - w) / 2 + ox, by + (bh - h) / 2 + oy, w, h);
+    }
   };
   const rings = (cx, cy, r, a) => {
     x.globalAlpha = a; x.lineWidth = r * .16;
@@ -1118,71 +1274,115 @@ async function makeRecap(pick, preview, onProg) {
     x.fillStyle = gold; x.beginPath(); x.moveTo(cx - r * .42, cy - r - r * .32); x.lineTo(cx - r * .42 + r * .2, cy - r - r * .1); x.lineTo(cx - r * .42, cy - r + r * .14); x.lineTo(cx - r * .42 - r * .2, cy - r - r * .1); x.fill();
     x.globalAlpha = 1;
   };
-  const title = (t, size, y, color, a, font = "Frank Ruhl Libre") => {
+  const title = (txt, size, y, color, a, font = "Frank Ruhl Libre", weight = 500) => {
+    if (a <= 0) return;
     x.globalAlpha = a; x.fillStyle = color; x.textAlign = "center"; x.direction = "rtl";
-    x.font = `500 ${size}px "${font}", serif`; x.shadowColor = "rgba(0,0,0,.35)"; x.shadowBlur = size * .25;
-    x.fillText(t, Wd / 2, y); x.shadowBlur = 0; x.globalAlpha = 1;
+    x.font = `${weight} ${size}px "${font}", serif`; x.shadowColor = "rgba(0,0,0,.4)"; x.shadowBlur = size * .3;
+    x.fillText(txt, Wd / 2, y); x.shadowBlur = 0; x.globalAlpha = 1;
   };
-  const ease = t => t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t);
+  const chapterTag = (txt, a, rise) => {
+    if (a <= 0) return;
+    x.save(); x.globalAlpha = a; x.font = `500 50px "Rubik", sans-serif`; x.direction = "rtl"; x.textAlign = "center";
+    const w = x.measureText(txt).width + 70, y = 250 - rise;
+    x.fillStyle = "rgba(18,13,20,.55)"; x.beginPath(); x.roundRect ? x.roundRect((Wd - w) / 2, y - 52, w, 82, 41) : x.rect((Wd - w) / 2, y - 52, w, 82); x.fill();
+    x.strokeStyle = gold; x.lineWidth = 2; x.stroke();
+    x.fillStyle = "#F6EEF2"; x.fillText(txt, Wd / 2, y + 6); x.restore();
+  };
+  const bg = () => { const g = x.createLinearGradient(0, 0, 0, Ht); g.addColorStop(0, "#1D1520"); g.addColorStop(1, "#120D14"); x.fillStyle = g; x.fillRect(0, 0, Wd, Ht); };
+  const drawSeg = (s, l, alpha) => {
+    x.globalAlpha = alpha;
+    if (s.kind === "img" || s.kind === "vid") {
+      const pr = Math.min(1.25, (l + FADE) / (s.dur + FADE));
+      const zin = s.n % 2 === 0, z = s.kind === "vid" ? 1.0 + .03 * pr : zin ? 1.03 + .09 * pr : 1.12 - .09 * pr;
+      const dir = s.n % 4 < 2 ? 1 : -1;
+      place(s.m, 0, 0, Wd, Ht, z, s.kind === "vid" ? 0 : dir * 14 * l, s.kind === "vid" ? 0 : -9 * l);
+    } else if (s.kind === "split") {
+      bg();
+      const a = easeOut(l / .9), b = easeOut((l - .25) / .9);
+      x.save(); x.beginPath(); x.rect(0, 0, Wd, Ht / 2 - 4); x.clip(); place(s.g, (1 - a) * Wd, 0, Wd, Ht / 2, 1.04 + .03 * l / s.dur, 0, 0); x.restore();
+      x.save(); x.beginPath(); x.rect(0, Ht / 2 + 4, Wd, Ht / 2); x.clip(); place(s.b, -(1 - b) * Wd, Ht / 2, Wd, Ht / 2, 1.04 + .03 * l / s.dur, 0, 0); x.restore();
+      x.fillStyle = gold; x.globalAlpha = alpha * ease((l - .9) / .4); x.fillRect(0, Ht / 2 - 4, Wd, 8); x.globalAlpha = alpha;
+      const ta = ease((l - 1.1) / .6) * alpha;
+      x.save(); x.globalAlpha = ta * .8; x.fillStyle = "#120D14"; x.beginPath(); x.arc(Wd / 2, Ht / 2, 150, 0, Math.PI * 2); x.fill(); x.restore();
+      rings(Wd / 2, Ht / 2 - 18, 56, ta);
+      title("ביחד", 64, Ht / 2 + 92, "#F6EEF2", ta);
+    }
+    x.globalAlpha = 1;
+  };
+  let clipPlaying = new Set();
   const frame = t => {
     x.fillStyle = "#120D14"; x.fillRect(0, 0, Wd, Ht);
-    const k = (t - INTRO) / SLIDE, i = Math.floor(k);
-    for (const j of [i - 1, i]) {
-      if (j < 0 || j >= imgs.length) continue;
-      const local = t - INTRO - j * SLIDE;                         // seconds into slide j
-      const a = j === i ? ease(local / FADE) : 1;
-      const dir = j % 2 ? 1 : -1, z = 1.04 + .08 * Math.min(1.3, (local + FADE) / (SLIDE + FADE));
-      cover(imgs[j], z, dir * 18 * local, -10 * local, a);
+    let i = segs.findIndex(s => t < s.t + s.dur); if (i < 0) i = segs.length - 1;
+    // video clips start on their cut and stop after the crossfade
+    for (const s of segs) {
+      if (s.kind !== "vid") continue;
+      const on = t >= s.t - .05 && t < s.t + s.dur + FADE;
+      if (on && !clipPlaying.has(s)) { clipPlaying.add(s); s.m.v.play().catch(() => {}); }
+      if (!on && clipPlaying.has(s) && !s.m.v.paused) s.m.v.pause();
     }
-    // soft vignette so text always reads
+    const cur = segs[i], prev = segs[i - 1], l = t - cur.t;
+    if (prev && l < FADE && prev.kind !== "intro") drawSeg(prev, t - prev.t, 1);
+    if (cur.kind !== "intro" && cur.kind !== "outro") drawSeg(cur, l, prev && prev.kind !== "intro" ? ease(l / FADE) : 1);
+    // soft vignette so captions always read
     const g = x.createLinearGradient(0, Ht * .62, 0, Ht); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.55)"); x.fillStyle = g; x.fillRect(0, Ht * .62, Wd, Ht * .38);
-    if (i >= 0 && i < pick.length) {
-      const p = pick[i], local = t - INTRO - i * SLIDE, a = ease((local - .3) / .5) * (1 - ease((local - SLIDE + .4) / .4));
-      const cap = [p.caption, nameOf(p.member_id)].filter(Boolean).join(" · ");
-      if (cap) title(cap, 46, Ht - 170, "#fff", a, "Rubik");
+    if (cur.m) {
+      const a = ease((l - .3) / .5) * (1 - ease((l - cur.dur + .4) / .4));
+      const cap = [cur.m.p.caption, nameOf(cur.m.p.member_id)].filter(Boolean).join(" · ");
+      if (cap) title(cap, 46, Ht - 170 - 14 * ease((l - .3) / .5), "#fff", a, "Rubik", 400);
+      if (cur.chapter) chapterTag(cur.chapter, ease((l - .15) / .45) * (1 - ease((l - 1.9) / .4)), 12 * ease((l - .15) / .45));
     }
-    if (t < INTRO + FADE) {
-      const a = 1 - ease((t - INTRO + .2) / (FADE + .2));
-      x.globalAlpha = a; const bg = x.createLinearGradient(0, 0, 0, Ht); bg.addColorStop(0, "#1D1520"); bg.addColorStop(1, "#120D14"); x.fillStyle = bg; x.fillRect(0, 0, Wd, Ht); x.globalAlpha = 1;
+    // intro: names over the first photo fading in
+    const intro = segs[0];
+    if (t < intro.dur + FADE) {
+      const first = segs[1];
+      if (first && t > intro.dur - 1.2) { x.globalAlpha = ease((t - intro.dur + 1.2) / 1.2) * .6; drawSeg(first, 0, ease((t - intro.dur + 1.2) / 1.2) * .6); x.globalAlpha = 1; }
+      const a = 1 - ease((t - intro.dur + .2) / (FADE + .2));
+      x.globalAlpha = a * (t < intro.dur - 1.2 ? 1 : 1 - .5 * ease((t - intro.dur + 1.2) / 1.2)); bg(); x.globalAlpha = 1;
       const ta = a * ease(t / .9);
-      rings(Wd / 2, Ht * .38, 110, ta);
+      rings(Wd / 2, Ht * .38 - 20 * (1 - easeOut(t / 1.4)), 110, ta);
       title(names, 128, Ht * .56, "#F6EEF2", ta);
-      title(dateStr, 46, Ht * .62, gold, ta, "Rubik");
+      title(dateStr, 46, Ht * .62, gold, a * ease((t - .5) / .8), "Rubik", 400);
     }
-    const tEnd = INTRO + pick.length * SLIDE;
-    if (t > tEnd - .5) {
-      const a = ease((t - tEnd + .5) / 1.1);
+    const out = segs[segs.length - 1];
+    if (t > out.t - .5) {
+      const a = ease((t - out.t + .5) / 1.1);
       x.globalAlpha = a * .92; x.fillStyle = "#120D14"; x.fillRect(0, 0, Wd, Ht); x.globalAlpha = 1;
       rings(Wd / 2, Ht * .42, 92, a);
       title(names, 112, Ht * .58, "#F6EEF2", a);
-      title("שני צדדים · " + dateStr, 40, Ht * .64, gold, a, "Rubik");
+      title("שני צדדים · " + dateStr, 40, Ht * .64, gold, a * ease((t - out.t) / .8), "Rubik", 400);
     }
     if (pv) pv.drawImage(cv, 0, 0, preview.width, preview.height);
   };
+
+  // 4) record, with the picture clock locked to the music clock
   const stream = cv.captureStream(30);
   const tracks = [...stream.getVideoTracks()];
-  let dest = null;
-  if (ac) { dest = ac.createMediaStreamDestination(); recapMusic(ac, dest, total); tracks.push(...dest.stream.getAudioTracks()); }
-  const mime = REC_MIMES
-    .find(m => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } });
+  const LEAD = .25;
+  let audioT0 = 0;
+  if (ac) {
+    const dest = ac.createMediaStreamDestination(); audioT0 = ac.currentTime + LEAD;
+    recapMusic(ac, dest, audioT0, total, drumsAt, drumsEnd); tracks.push(...dest.stream.getAudioTracks());
+  }
+  const mime = REC_MIMES.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } });
   if (!mime) throw new ApiError("too_big");
-  const rec = new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: 6000000, audioBitsPerSecond: 160000 });
+  const rec = new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: 8000000, audioBitsPerSecond: 160000 });
   const chunks = []; rec.ondataavailable = e => e.data && e.data.size && chunks.push(e.data);
   const stopped = new Promise(r => rec.onstop = r);
   let wake = null; try { wake = await navigator.wakeLock?.request("screen"); } catch {}
   frame(0); rec.start(1000);
-  const start = performance.now();
+  const start = performance.now() + LEAD * 1000;
+  const clock = () => ac ? ac.currentTime - audioT0 : (performance.now() - start) / 1000;
   await new Promise(res => {
     const iv = setInterval(() => {
-      const t = (performance.now() - start) / 1000;
-      frame(Math.min(t, total)); onProg(.12 + .88 * Math.min(1, t / total));
-      if (t >= total) { clearInterval(iv); res(); }
+      const now = Math.max(0, clock());
+      frame(Math.min(now, total)); onProg(.15 + .85 * Math.min(1, now / total));
+      if (now >= total) { clearInterval(iv); res(); }
     }, 1000 / 30);
   });
   rec.stop(); await stopped;
   tracks.forEach(t => t.stop()); try { ac && ac.close(); } catch {} try { wake && wake.release(); } catch {}
+  media.forEach(m => { if (m.v) { try { m.v.pause(); m.v.removeAttribute("src"); m.v.load(); } catch {} } });
   const type = mime.split(";")[0];
-  const d = new Date(W().date + "T12:00:00");
   return new File([new Blob(chunks, { type })], `${coupleName("groom")}-${coupleName("bride")}-סיכום.${type === "video/webm" ? "webm" : "mp4"}`.replace(/\s+/g, "_"), { type });
 }
 
