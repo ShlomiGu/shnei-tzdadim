@@ -44,15 +44,22 @@ def call(method, path, body=None, ok=(200, 201, 204)):
         return e.code, data
 
 
+def report(st, data, what):
+    # every reason Apple gives becomes its own annotation, readable on the run page without signing in
+    print(f"\n::error::{what} failed (HTTP {st})")
+    for err in data.get("errors", []):
+        line = f"{err.get('code', '')}: {err.get('title', '')} | {err.get('detail', '')}".replace("\n", " ")
+        print(f"::error title={what}::{line[:900]}")
+        for sub in (err.get("meta") or {}).get("associatedErrors", {}).values():
+            for x in sub:
+                l2 = f"{x.get('code', '')}: {x.get('title', '')} | {x.get('detail', '')}".replace("\n", " ")
+                print(f"::error title=missing::{l2[:900]}")
+
+
 def must(method, path, body=None, what=""):
     st, data = call(method, path, body)
     if st >= 300:
-        print(f"\n::error::{what or path} failed (HTTP {st})")
-        for err in data.get("errors", []):
-            print(" -", err.get("title"), "|", err.get("detail"))
-            for sub in (err.get("meta") or {}).get("associatedErrors", {}).values():
-                for s in sub:
-                    print("    *", s.get("title"), "|", s.get("detail"))
+        report(st, data, what or path)
         sys.exit(1)
     return data
 
@@ -78,6 +85,11 @@ def team():
 
 def submit(build_num):
     aid = app_id()
+    if build_num == "latest":
+        d = must("GET", f"/v1/builds?filter[app]={aid}&filter[preReleaseVersion.version]={APP_VERSION}&sort=-uploadedDate&limit=1", what="latest build")
+        if not d["data"]:
+            print("::error::No uploaded build for this version yet."); sys.exit(1)
+        build_num = d["data"][0]["attributes"]["version"]
     print(f"app {aid}, waiting for build {APP_VERSION} ({build_num}) to finish processing…", flush=True)
     build = None
     for i in range(90):  # up to ~60 minutes
@@ -130,14 +142,14 @@ def submit(build_num):
                    "relationships": {"app": {"data": {"type": "apps", "id": aid}}}}},
                    what="create review submission")["data"]["id"]
 
-    st, data = call("POST", "/v1/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
-                    "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sid}},
-                                      "appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
-    if st >= 300 and st != 409:
-        must("POST", "/v1/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
-             "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sid}},
-                               "appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}},
-             what="add version to submission (usually missing metadata, see below)")
+    items = must("GET", f"/v1/reviewSubmissions/{sid}/items", what="list submission items")
+    if not items.get("data"):
+        st, data = call("POST", "/v1/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems",
+                        "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": sid}},
+                                          "appStoreVersion": {"data": {"type": "appStoreVersions", "id": vid}}}}})
+        if st >= 300:
+            report(st, data, "add version to submission")
+            sys.exit(1)
 
     must("PATCH", f"/v1/reviewSubmissions/{sid}", {"data": {"type": "reviewSubmissions", "id": sid,
          "attributes": {"submitted": True}}}, what="submit for review")
