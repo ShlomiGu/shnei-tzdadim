@@ -1,0 +1,4 @@
+# Invite links with a real preview (couple photo, names, side).
+# GitHub Pages is static, so this tiny Netlify site answers /j/CODE with the right tags and sends people on to the app.
+[build]
+  publish = "public"

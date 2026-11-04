@@ -686,7 +686,9 @@ function ago(t) {
 const localDate = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const SITE_URL = "https://shlomigu.github.io/shnei-tzdadim/";
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-const inviteUrl = code => `${IS_NATIVE ? SITE_URL : location.origin + location.pathname}?code=${code}`;
+// invite links go through a small page that gives WhatsApp the couple photo, then opens the app (invite/ in the repo)
+const INVITE_BASE = "";
+const inviteUrl = code => INVITE_BASE ? `${INVITE_BASE}/j/${code}` : `${IS_NATIVE ? SITE_URL : location.origin + location.pathname}?code=${code}`;
 
 /* ============ rings ============ */
 function ringsSvg(p) {
