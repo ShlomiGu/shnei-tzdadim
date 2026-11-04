@@ -1,0 +1,492 @@
+[
+ {
+  "id": "km-canon-in-d-major",
+  "title": "Canon in D Major",
+  "artist": "Kevin MacLeod",
+  "cat": "classic",
+  "bpm": 80,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Canon%20in%20D%20Major.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Canon in D Major\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-canon-in-d-for-two-harps",
+  "title": "Canon in D for Two Harps",
+  "artist": "Kevin MacLeod",
+  "cat": "classic",
+  "bpm": 83,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Canon%20in%20D%20for%20Two%20Harps.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Canon in D for Two Harps\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-wagner-bridal-chorus",
+  "title": "Wagner Bridal Chorus",
+  "artist": "Kevin MacLeod",
+  "cat": "classic",
+  "bpm": 60,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Wagner%20Bridal%20Chorus.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Wagner Bridal Chorus\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-wagner-bridal-chorus-piano",
+  "title": "Wagner Bridal Chorus - piano",
+  "artist": "Kevin MacLeod",
+  "cat": "classic",
+  "bpm": 60,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Wagner%20Bridal%20Chorus%20-%20piano.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Wagner Bridal Chorus - piano\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-gymnopedie-no-1",
+  "title": "Gymnopedie No. 1",
+  "artist": "Kevin MacLeod",
+  "cat": "classic",
+  "bpm": 77,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Gymnopedie%20No%201.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Gymnopedie No. 1\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-royal-coupling",
+  "title": "Royal Coupling",
+  "artist": "Kevin MacLeod",
+  "cat": "classic",
+  "bpm": 60,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Royal%20Coupling.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Royal Coupling\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-there-is-romance",
+  "title": "There is Romance",
+  "artist": "Kevin MacLeod",
+  "cat": "romantic",
+  "bpm": 93,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/There%20is%20Romance.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"There is Romance\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-reawakening",
+  "title": "Reawakening",
+  "artist": "Kevin MacLeod",
+  "cat": "romantic",
+  "bpm": 56,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Reawakening.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Reawakening\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-procession-of-the-king",
+  "title": "Procession of the King",
+  "artist": "Kevin MacLeod",
+  "cat": "romantic",
+  "bpm": 56,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Procession%20of%20the%20King.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Procession of the King\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-touching-moments-four-melody",
+  "title": "Touching Moments Four - Melody",
+  "artist": "Kevin MacLeod",
+  "cat": "romantic",
+  "bpm": null,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Touching%20Moments%20Four%20-%20Melody.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Touching Moments Four - Melody\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-pepper-s-theme",
+  "title": "Pepper's Theme",
+  "artist": "Kevin MacLeod",
+  "cat": "romantic",
+  "bpm": 76,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Peppers%20Theme.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Pepper's Theme\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-dream-culture",
+  "title": "Dream Culture",
+  "artist": "Kevin MacLeod",
+  "cat": "romantic",
+  "bpm": 70,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Dream%20Culture.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Dream Culture\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-enchanted-journey",
+  "title": "Enchanted Journey",
+  "artist": "Kevin MacLeod",
+  "cat": "romantic",
+  "bpm": 62,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Enchanted%20Journey.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Enchanted Journey\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-water-droplets-on-the-river",
+  "title": "Water Droplets on the River",
+  "artist": "Kevin MacLeod",
+  "cat": "romantic",
+  "bpm": 140,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Water%20Droplets%20on%20the%20River.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Water Droplets on the River\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-carefree",
+  "title": "Carefree",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 96,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Carefree.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Carefree\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-life-of-riley",
+  "title": "Life of Riley",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 102,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Life%20of%20Riley.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Life of Riley\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-daily-beetle",
+  "title": "Daily Beetle",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 100,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Daily%20Beetle.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Daily Beetle\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-wallpaper",
+  "title": "Wallpaper",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 92,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Wallpaper.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Wallpaper\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-super-friendly",
+  "title": "Super Friendly",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 108,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Super%20Friendly.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Super Friendly\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-funky-chunk",
+  "title": "Funky Chunk",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 115,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Funky%20Chunk.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Funky Chunk\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-disco-con-tutti",
+  "title": "Disco con Tutti",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 115,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Disco%20con%20Tutti.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Disco con Tutti\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-beachfront-celebration",
+  "title": "Beachfront Celebration",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 120,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Beachfront%20Celebration.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Beachfront Celebration\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-paradise-found",
+  "title": "Paradise Found",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 105,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Paradise_Found.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Paradise Found\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-island-meet-and-greet",
+  "title": "Island Meet and Greet",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 100,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Island%20Meet%20and%20Greet.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Island Meet and Greet\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-electro-cabello",
+  "title": "Electro Cabello",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 117,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Electro%20Cabello.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Electro Cabello\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-carpe-diem",
+  "title": "Carpe Diem",
+  "artist": "Kevin MacLeod",
+  "cat": "happy",
+  "bpm": 96,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Carpe%20Diem.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Carpe Diem\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-porch-swing-days",
+  "title": "Porch Swing Days",
+  "artist": "Kevin MacLeod",
+  "cat": "acoustic",
+  "bpm": 110,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Porch%20Swing%20Days%20-%20slower.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Porch Swing Days\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-almost-bliss",
+  "title": "Almost Bliss",
+  "artist": "Kevin MacLeod",
+  "cat": "acoustic",
+  "bpm": 90,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Almost%20Bliss.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Almost Bliss\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-somewhere-sunny",
+  "title": "Somewhere Sunny",
+  "artist": "Kevin MacLeod",
+  "cat": "acoustic",
+  "bpm": 106,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Somewhere%20Sunny%20%28ver%202%29.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Somewhere Sunny\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-montauk-point",
+  "title": "Montauk Point",
+  "artist": "Kevin MacLeod",
+  "cat": "acoustic",
+  "bpm": 118,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Montauk%20Point.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Montauk Point\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-fireflies-and-stardust",
+  "title": "Fireflies and Stardust",
+  "artist": "Kevin MacLeod",
+  "cat": "acoustic",
+  "bpm": 170,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Fireflies%20and%20Stardust.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Fireflies and Stardust\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-fretless",
+  "title": "Fretless",
+  "artist": "Kevin MacLeod",
+  "cat": "acoustic",
+  "bpm": 100,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Fretless.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Fretless\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-morning",
+  "title": "Morning",
+  "artist": "Kevin MacLeod",
+  "cat": "acoustic",
+  "bpm": 60,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Morning.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Morning\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-americana",
+  "title": "Americana",
+  "artist": "Kevin MacLeod",
+  "cat": "epic",
+  "bpm": 104,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Americana.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Americana\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-adding-the-sun",
+  "title": "Adding the Sun",
+  "artist": "Kevin MacLeod",
+  "cat": "epic",
+  "bpm": 90,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Adding%20the%20Sun.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Adding the Sun\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-angel-share",
+  "title": "Angel Share",
+  "artist": "Kevin MacLeod",
+  "cat": "epic",
+  "bpm": 85,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Angel%20Share.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Angel Share\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-second-coming",
+  "title": "Second Coming",
+  "artist": "Kevin MacLeod",
+  "cat": "epic",
+  "bpm": 64,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Second%20Coming%20-%20no%20percussion.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Second Coming\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-inspired",
+  "title": "Inspired",
+  "artist": "Kevin MacLeod",
+  "cat": "epic",
+  "bpm": 120,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Inspired.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Inspired\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-lachaim",
+  "title": "Lachaim",
+  "artist": "Kevin MacLeod",
+  "cat": "world",
+  "bpm": 148,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Lachaim.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Lachaim\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-greko",
+  "title": "Greko",
+  "artist": "Kevin MacLeod",
+  "cat": "world",
+  "bpm": 72,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Greko%20Sketch.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Greko\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-finding-the-balance",
+  "title": "Finding the Balance",
+  "artist": "Kevin MacLeod",
+  "cat": "world",
+  "bpm": 75,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Finding%20the%20Balance.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Finding the Balance\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-tafi-maradi",
+  "title": "Tafi Maradi",
+  "artist": "Kevin MacLeod",
+  "cat": "world",
+  "bpm": 133,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Tafi%20Maradi.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Tafi Maradi\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "km-lagoa",
+  "title": "Lagoa",
+  "artist": "Kevin MacLeod",
+  "cat": "world",
+  "bpm": 130,
+  "src": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Lagoa%20v2.mp3",
+  "license": "CC BY 4.0",
+  "credit": "\"Lagoa\" Kevin MacLeod (incompetech.com) · CC BY 4.0"
+ },
+ {
+  "id": "jw-stars-collide",
+  "title": "Stars Collide",
+  "artist": "Josh Woodward",
+  "cat": "vocal",
+  "bpm": null,
+  "src": "https://prod-1.storage.jamendo.com/?trackid=450533&format=mp32",
+  "license": "CC BY 3.0",
+  "credit": "\"Stars Collide\" Josh Woodward (joshwoodward.com) · CC BY 3.0"
+ },
+ {
+  "id": "jw-don-t-close-your-eyes",
+  "title": "Don't Close Your Eyes",
+  "artist": "Josh Woodward",
+  "cat": "vocal",
+  "bpm": null,
+  "src": "https://prod-1.storage.jamendo.com/?trackid=162038&format=mp32",
+  "license": "CC BY 3.0",
+  "credit": "\"Don't Close Your Eyes\" Josh Woodward (joshwoodward.com) · CC BY 3.0"
+ },
+ {
+  "id": "jw-as-i-am",
+  "title": "As I Am",
+  "artist": "Josh Woodward",
+  "cat": "vocal",
+  "bpm": null,
+  "src": "https://prod-1.storage.jamendo.com/?trackid=1658274&format=mp32",
+  "license": "CC BY 3.0",
+  "credit": "\"As I Am\" Josh Woodward (joshwoodward.com) · CC BY 3.0"
+ },
+ {
+  "id": "jw-effortless",
+  "title": "Effortless",
+  "artist": "Josh Woodward",
+  "cat": "vocal",
+  "bpm": null,
+  "src": "https://prod-1.storage.jamendo.com/?trackid=78727&format=mp32",
+  "license": "CC BY 3.0",
+  "credit": "\"Effortless\" Josh Woodward (joshwoodward.com) · CC BY 3.0"
+ },
+ {
+  "id": "jw-go",
+  "title": "Go",
+  "artist": "Josh Woodward",
+  "cat": "vocal",
+  "bpm": null,
+  "src": "https://prod-1.storage.jamendo.com/?trackid=162025&format=mp32",
+  "license": "CC BY 3.0",
+  "credit": "\"Go\" Josh Woodward (joshwoodward.com) · CC BY 3.0"
+ },
+ {
+  "id": "jw-already-there",
+  "title": "Already There",
+  "artist": "Josh Woodward",
+  "cat": "vocal",
+  "bpm": null,
+  "src": "https://prod-1.storage.jamendo.com/?trackid=683801&format=mp32",
+  "license": "CC BY 3.0",
+  "credit": "\"Already There\" Josh Woodward (joshwoodward.com) · CC BY 3.0"
+ }
+]

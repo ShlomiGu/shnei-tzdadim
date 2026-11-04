@@ -1,0 +1,57 @@
+name: Songs library
+
+# Downloads the tracks listed in songs/list.json, converts them for phones and publishes them with the site.
+on:
+  push:
+    paths: ["songs/list.json", ".github/workflows/songs.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: { group: songs, cancel-in-progress: false }
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: ffmpeg
+        run: which ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+      - name: Download and convert
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess, urllib.request
+          songs = json.load(open("songs/list.json"))
+          idx = []
+          for s in songs:
+              out = f"songs/{s['id']}.mp3"
+              if not os.path.exists(out):
+                  tmp = f"/tmp/{s['id']}.src"
+                  try:
+                      req = urllib.request.Request(s["src"], headers={"User-Agent": "shnei-tzdadim-songs/1.0 (+https://shlomigu.github.io/shnei-tzdadim/)"})
+                      with urllib.request.urlopen(req, timeout=120) as r, open(tmp, "wb") as f: f.write(r.read())
+                      subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", tmp, "-vn", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+                                      "-ac", "2", "-ar", "44100", "-b:a", "112k", out], check=True)
+                  except Exception as e:
+                      print("::warning::skipped", s["id"], e); continue
+              d = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out], capture_output=True, text=True).stdout.strip() or 0)
+              # a small waveform for the picker: 120 loudness points across the song
+              raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-i", out, "-ac", "1", "-ar", "400", "-f", "s16le", "-"], capture_output=True).stdout
+              import array; a = array.array("h"); a.frombytes(raw[: len(raw) // 2 * 2])
+              n = 120; step = max(1, len(a) // n)
+              wave = [min(99, int(max((abs(x) for x in a[i:i + step]), default=0) / 327.67)) for i in range(0, step * n, step)]
+              idx.append({k: s[k] for k in ("id", "title", "artist", "cat", "bpm", "license", "credit")} | {"dur": round(d, 1), "wave": wave})
+              print("ok", s["id"], round(d), "s")
+          json.dump(idx, open("songs/index.json", "w"), ensure_ascii=False, separators=(",", ":"))
+          print(len(idx), "songs ready")
+          PY
+      - name: Publish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add songs
+          git diff --cached --quiet && exit 0
+          git commit -m "Songs library: $(ls songs/*.mp3 | wc -l) tracks"
+          git push
