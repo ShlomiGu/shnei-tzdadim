@@ -35,7 +35,7 @@ jobs:
         run: |
           ONLY="$IN"
           case "$TAG" in ios-submit*) ONLY=latest;; esac
-          if [ "${{ github.event_name }}" = "push" ] && [ -z "$TAG" ] && grep -qi submit app/release.txt 2>/dev/null; then ONLY=latest; fi
+          if [ "${{ github.event_name }}" = "push" ] && [ -z "$TAG" ] && grep -qi submit release.txt 2>/dev/null; then ONLY=latest; fi
           echo "ONLY=$ONLY" >> $GITHUB_ENV
           echo "mode: ${ONLY:-build and submit}"
 
