@@ -420,6 +420,12 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .recap-ic{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;flex:none;background:linear-gradient(135deg,#E2C27A,#B08A3A);color:#2A1F08}
 .recap-prev{display:grid;place-items:center}
 .recap-prev canvas{width:180px;height:320px;border-radius:18px;background:#120D14;box-shadow:0 10px 30px rgb(0 0 0 / .25)}
+.push-card{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 6px;border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}
+.push-card b{display:block;font-weight:600;font-size:15px}
+.push-card .grow span{font-size:13px;color:var(--muted);line-height:1.35;display:block}
+.push-ic{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--gold-soft);color:var(--gold-ink)}
+.push-card .icon-btn{width:32px;height:32px;color:var(--muted)}
+.steps{margin:0;padding-inline-start:22px;display:flex;flex-direction:column;gap:8px}
 /* media */
 .tile{background-size:cover;background-position:center}
 .tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
@@ -527,6 +533,7 @@ const I = {
   arrowR:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   save:'<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 17.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5"/>',
   play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+  bell:'<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
   friends:'<circle cx="9" cy="8.5" r="3.2"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M3.5 19.5c.7-3.2 2.9-5 5.5-5s4.8 1.8 5.5 5"/><path d="M14.8 14.7c.5-.1 1.1-.2 1.7-.2 2.2 0 4 1.5 4.5 4.5"/>',
   nav:'<path d="M12 2.8 19.5 21 12 16.8 4.5 21z"/>'
 };
@@ -804,6 +811,71 @@ function setView(v) {
   render(true);
 }
 
+/* ============ push notifications ============ */
+const VAPID_PUBLIC = "BMm4tqW2sO8vdjX9e2ZcNgbQzBuUQ5YTXUH2e7MpCeCn2DCmlm5ixTaFTgxGDphehd4QqLjXJ7jYvHBV7tG7UWc";
+const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const pushSupported = () => !IS_NATIVE && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+// "ok" | "needs-home" (iPhone in Safari) | "blocked" | "unsupported" | "off"
+function pushState() {
+  if (IS_NATIVE) return "unsupported";
+  if (isIOS() && !isStandalone()) return "needs-home";
+  if (!pushSupported()) return "unsupported";
+  if (Notification.permission === "denied") return "blocked";
+  return Notification.permission === "granted" && store.get("push.on", false) ? "ok" : "off";
+}
+let swReg = null;
+function registerSW() {
+  if (IS_NATIVE || !("serviceWorker" in navigator) || location.protocol !== "https:") return;
+  navigator.serviceWorker.register("sw.js").then(r => { swReg = r; if (pushState() === "ok") syncPush(); }, () => {});
+}
+const b64u = s => { const p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+async function syncPush() {
+  // keeps the server's copy of this phone's subscription fresh (it can rotate)
+  try {
+    const reg = swReg || await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(VAPID_PUBLIC) });
+    const j = sub.toJSON();
+    await rpc("save_push", { p_token: S.token, p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth });
+    return true;
+  } catch (e) { console.warn("push", e); return false; }
+}
+async function enablePush() {
+  const st = pushState();
+  if (st === "needs-home") return homeScreenSheet();
+  if (st === "blocked") return toast("ההתראות חסומות בהגדרות הדפדפן. אפשרו אותן לאתר ונסו שוב", "x");
+  if (st === "unsupported") return toast("הדפדפן הזה לא תומך בהתראות", "x");
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") { toast("בלי אישור לא נוכל לשלוח התראות", "x"); render(); return; }
+  if (!swReg) { try { swReg = await navigator.serviceWorker.register("sw.js"); } catch {} }
+  if (await syncPush()) { store.set("push.on", true); toast("ההתראות פועלות", "check"); }
+  else toast("לא הצלחנו להפעיל התראות. נסו שוב", "x");
+  render();
+}
+async function disablePush() {
+  store.set("push.on", false);
+  try { const reg = swReg || await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription();
+    if (sub) { await rpc("remove_push", { p_token: S.token, p_endpoint: sub.endpoint }); await sub.unsubscribe(); } } catch {}
+  toast("ההתראות כבויות", "check"); render();
+}
+function homeScreenSheet() {
+  openSheet("התראות באייפון", `<div class="stack">
+    <p>באייפון, התראות מגיעות רק כשהאתר מותקן כאפליקציה במסך הבית. זה לוקח 10 שניות:</p>
+    <ol class="steps"><li>לחצו על כפתור השיתוף <b>⬆︎</b> בתחתית ספארי</li><li>בחרו <b>הוספה למסך הבית</b></li><li>פתחו את <b>שני צדדים</b> מהמסך הבית, והפעילו התראות</li></ol>
+    <p class="small muted">אתם נשארים מחוברים, לא צריך את הקוד שוב.</p>
+    <button class="btn block" data-close>הבנתי</button>
+  </div>`);
+}
+function pushCard() {
+  if (store.get("push.hide", false)) return "";
+  const st = pushState();
+  if (st === "ok" || st === "unsupported" || st === "blocked") return "";
+  const what = isGuest() ? "כשהאלבום נפתח" : "כשמגיע טיזר, ברגע החשיפה וכשנשלחת אליכם תמונה";
+  return `<div class="push-card"><span class="push-ic">${ic("bell", 20)}</span><span class="grow"><b>רוצים לדעת ${isGuest() ? "מתי זה קורה" : "ראשונים"}?</b><span>התראה ${what}</span></span>
+    <button class="btn sm" data-act="push-on">${st === "needs-home" ? "איך?" : "הפעלה"}</button><button class="icon-btn" data-act="push-hide" aria-label="לא עכשיו">${ic("x", 16)}</button></div>`;
+}
+
 /* ============ status ============ */
 const STATUSES = ["מתארגנים", "מצטלמים", "יצאנו לדרך", "הגענו לאולם", "מוכנים לחופה", "חוגגים"];
 function statusRow(readonly) {
@@ -870,6 +942,7 @@ function vHome() {
     </section>
 
 ${rv && recapPool().length >= 3 ? `<button class="recap-card" data-act="recap"><span class="recap-ic">${ic("play", 26)}</span><span class="grow"><b>סרטון הסיכום של החתונה</b><span>${Math.min(RECAP_MAX, recapPool().length)} רגעים עם מוזיקה, מוכן לוואטסאפ ולסטורי</span></span>${ic("chevL", 20)}</button>` : ""}
+    ${pushCard()}
     ${!rv ? `<button class="veil-card lace" data-nav="album" data-tab="other">
       <span class="seal">${ic("lock", 24, 2)}</span>
       <span style="min-width:0">
@@ -930,6 +1003,7 @@ function vHomeGuest() {
     </section>
     ${rv && recapPool().length >= 3 ? `<button class="recap-card" data-act="recap"><span class="recap-ic">${ic("play", 26)}</span><span class="grow"><b>סרטון הסיכום של החתונה</b><span>${Math.min(RECAP_MAX, recapPool().length)} רגעים עם מוזיקה, מוכן לוואטסאפ ולסטורי</span></span>${ic("chevL", 20)}</button>` : ""}
 
+    ${pushCard()}
     ${!rv ? statusRow(true) : ""}
     ${(cur || nxt) ? `<a class="nn" href="#schedule">
       <div class="now"><div class="k">עכשיו</div>${cur ? `<div class="t">${esc(cur.t)}</div><div class="n">${esc(cur.title)}</div>` : `<div class="n muted" style="margin-top:6px">עוד לא התחלנו</div>`}</div>
@@ -1661,6 +1735,7 @@ function renderCreate() {
   });
 }
 async function onAuthed(token, msg) {
+  registerSW();
   S.token = token; store.set("token", token);
   history.replaceState(null, "", location.pathname + (location.hash || ""));
   await refresh();
@@ -2383,6 +2458,7 @@ function settingsSheet(focus) {
         <div class="field"><label for="st-nick">השם שלי</label><input class="input" id="st-nick" maxlength="30" value="${esc(me.name)}"></div>
         <button class="btn ghost block" id="st-me">שמירה</button>
       </section>
+      ${pushState() !== "unsupported" && pushState() !== "ok" ? `<button class="btn block" data-act="push-on">${ic("bell", 18)}${pushState() === "needs-home" ? "איך מקבלים התראות באייפון" : "התראה כשהאלבום נפתח"}</button>` : ""}
       <section class="card stack">
         <h3 class="card-t">גיבוי</h3>
         <button class="btn ghost block" id="st-zip">${ic("album", 20)}הורדת כל התמונות שאני רואה</button>
@@ -2419,6 +2495,13 @@ function settingsSheet(focus) {
         <div class="field"><label for="st-c">טלפונים חשובים</label><textarea class="input" id="st-c" placeholder="שורה לכל איש קשר: שם | תפקיד | טלפון&#10;דנה | צלמת | 050-0000000">${esc(contacts)}</textarea></div>
         <button class="btn ghost block" id="st-save">שמירה</button>
       </section>
+      ${pushState() !== "unsupported" ? `<section class="card stack">
+        <h3 class="card-t">התראות</h3>
+        <p class="small muted">טיזר חדש מהצד השני, תמונה שנשלחה רק למלווים, רגע החשיפה ומכתב חתום שנפתח.</p>
+        ${pushState() === "ok" ? `<button class="btn ghost block" data-act="push-off">${ic("bell", 18)}כיבוי התראות במכשיר הזה</button>`
+          : pushState() === "blocked" ? `<p class="small">ההתראות חסומות בהגדרות הדפדפן. אפשרו אותן לאתר.</p>`
+          : `<button class="btn block" data-act="push-on">${ic("bell", 18)}${pushState() === "needs-home" ? "איך מפעילים באייפון" : "הפעלת התראות"}</button>`}
+      </section>` : ""}
       <section class="card stack">
         <h3 class="card-t">גיבוי</h3>
         <p class="small muted">שום דבר לא נמחק באמת: תמונה שנמחקת נשמרת בשרת ואפשר להחזיר אותה. בנוסף, אפשר להוריד עותק של כל מה שאתם רואים לקובץ ZIP. כדאי לעשות את זה מהמחשב בסוף הערב.</p>
@@ -2586,6 +2669,9 @@ document.addEventListener("click", async e => {
     case "status": return statusSheet();
     case "slideshow": return slideshow();
     case "recap": return recapSheet();
+    case "push-on": closeSheet(); return enablePush();
+    case "push-off": closeSheet(); return disablePush();
+    case "push-hide": store.set("push.hide", true); return render();
   }
 });
 window.addEventListener("hashchange", () => { if (S.st) setView(isGuest() && !GUEST_VIEWS.includes(location.hash.slice(1)) ? "home" : location.hash.slice(1)); });
@@ -2598,6 +2684,7 @@ window.addEventListener("hashchange", () => { if (S.st) setView(isGuest() && !GU
     await refresh();
     if (S.st) {
       startLoop();
+      registerSW();
       if (qCode && qCode.toUpperCase().replace(/[^A-Z0-9]/g, "") !== W().my_code) toast("אתם כבר מחוברים לחתונה. כדי להצטרף עם קוד אחר, צאו מההגדרות", "user");
       history.replaceState(null, "", location.pathname + location.hash);
       if (isRevealed()) setTimeout(showRevealOverlay, 500);
