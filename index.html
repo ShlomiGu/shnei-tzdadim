@@ -454,6 +454,28 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .rc-toggle input{width:22px;height:22px;margin-top:2px;accent-color:var(--gold);flex:none}
 .rc-toggle b{display:block;font-weight:600;font-size:15px}
 .tiny{font-size:11.5px;line-height:1.4}
+.songs{position:fixed;inset:0;z-index:58;background:var(--bg);display:flex;flex-direction:column;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 10px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(16px,env(safe-area-inset-left,0px));animation:up .25s}
+.songs-h{display:flex;align-items:center;gap:8px}
+.songs-h h2{font-family:var(--f-display);font-weight:500;font-size:26px}
+.songs .chips{margin-inline:-16px;padding-inline:16px}
+.songs-list{flex:1;overflow:auto;display:flex;flex-direction:column;gap:2px;margin-inline:-8px;padding-inline:8px;overscroll-behavior:contain}
+.song-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:14px}
+.song-row.on{background:var(--gold-soft)}
+.song-play{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.song-meta{flex:1;min-width:0;text-align:start;display:flex;flex-direction:column;gap:1px}
+.song-meta b{font-weight:600;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.song-meta span{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.songs-empty{display:grid;place-items:center;padding:48px 0;color:var(--muted)}
+.songs-foot{display:flex;gap:8px}
+.songs-foot .btn{flex:1;gap:6px}
+.songs-credit{text-align:center}
+.song-card{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:16px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);text-align:start}
+.song-card b{display:block;font-weight:600;font-size:15.5px}
+.song-card .grow span{font-size:13px;color:var(--muted)}
+.song-art{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;flex:none;color:#fff;background:linear-gradient(135deg,var(--bride),var(--gold),var(--groom))}
+.song-part{display:flex;flex-direction:column;gap:4px}
+.song-part canvas{width:100%;height:56px;touch-action:none;cursor:grab;display:block}
+.song-times{font-size:12.5px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
 .recap-pill{border:0;cursor:pointer;font:inherit;font-size:13.5px;font-weight:600}
 .recap-pill.low{top:calc(env(safe-area-inset-top,0px) + 112px)}
 .upq-ring{width:22px;height:22px;border-radius:50%;flex:none;background:conic-gradient(var(--gold) calc(var(--p) * 1%),rgb(127 127 127 / .35) 0);-webkit-mask:radial-gradient(circle,transparent 6px,#000 7px);mask:radial-gradient(circle,transparent 6px,#000 7px)}
@@ -1647,61 +1669,182 @@ function analyzeSong(buf) {
   return { bpm: Math.round(bestBpm * 2) / 2, start: start / 100 };
 }
 let RECAP_SONG = null;
+// ---- the song library (real recordings, CC BY, see songs/CREDITS.md) ----
+const SONG_CATS = { all: "הכל", romantic: "רומנטי", classic: "קלאסי לחתונה", happy: "שמח", vocal: "עם מילים", acoustic: "אקוסטי", world: "ים תיכוני ועולמי", epic: "קולנועי" };
+const MOOD_CATS = { pop: ["happy", "vocal"], med: ["world", "happy"], hora: ["world", "happy"], build: ["vocal", "happy", "epic"], acoustic: ["acoustic", "vocal"], romantic: ["romantic", "classic"], cinema: ["epic", "romantic"] };
+const SONGS_BASE = (IS_NATIVE ? SITE_URL : new URL(".", location.href).href) + "songs/";
+let SONGS = null; const SONG_BUF = new Map();
+const loadSongs = () => SONGS || (SONGS = fetch(SONGS_BASE + "index.json").then(r => { if (!r.ok) throw new Error("songs"); return r.json(); }).catch(e => { SONGS = null; throw e; }));
+function songBuffer(song) {
+  // the whole track, decoded, with its tempo and first strong beat
+  if (!SONG_BUF.has(song.id)) SONG_BUF.set(song.id, (async () => {
+    const r = await fetch(SONGS_BASE + song.id + ".mp3"); if (!r.ok) throw new Error("song");
+    const ab = await r.arrayBuffer(), ac = new (window.AudioContext || window.webkitAudioContext)();
+    try { const buf = await new Promise((res, rej) => { const p = ac.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); }); return { buf, ...analyzeSong(buf) }; }
+    finally { try { ac.close(); } catch {} }
+  })().catch(e => { SONG_BUF.delete(song.id); throw e; }));
+  return SONG_BUF.get(song.id);
+}
+function bestPart(song, len) {
+  // the loudest stretch of the right length is usually the chorus
+  const w = song.wave || [], n = w.length; if (!n || !song.dur || song.dur <= len + 2) return 0;
+  const k = Math.max(1, Math.round(len / song.dur * n)); let best = 0, at = 0;
+  for (let i = 0; i + k <= n; i++) { let s = 0; for (let j = i; j < i + k; j++) s += w[j]; s -= i === 0 ? 0 : w[i - 1] * .5; if (s > best) { best = s; at = i; } }
+  return Math.max(0, Math.min(song.dur - len, at / n * song.dur));
+}
+function songPicker(current, onPick) {
+  // full-screen chooser, like picking music for a story
+  const el = document.createElement("div"); el.className = "songs"; el.dir = "rtl";
+  el.innerHTML = `<div class="songs-h"><button class="icon-btn" data-x aria-label="סגירה">${ic("x")}</button><h2>בחירת שיר</h2></div>
+    <input class="input" id="sg-q" placeholder="חיפוש שיר או אמן" autocomplete="off">
+    <div class="chips" id="sg-cats">${Object.entries(SONG_CATS).map(([k, v]) => `<button class="chip" data-cat="${k}" aria-pressed="${k === "all"}">${v}</button>`).join("")}</div>
+    <div class="songs-list" id="sg-list"><div class="songs-empty"><span class="spin"></span></div></div>
+    <div class="songs-foot">
+      <button class="btn ghost sm" data-own>${ic("music", 16)}שיר מהטלפון</button>
+      <button class="btn ghost sm" data-gen>${ic("sparkle", 16)}מנגינה מקורית</button>
+    </div>
+    <p class="tiny muted songs-credit">שירים של Kevin MacLeod ושל Josh Woodward, ברישיון Creative Commons. הקרדיט מופיע בסוף הסרטון.</p>`;
+  document.body.appendChild(el);
+  const audio = new Audio(); audio.preload = "none"; let playing = null, cat = "all", q = "";
+  const stop = () => { try { audio.pause(); } catch {} playing = null; el.querySelectorAll("[data-play]").forEach(b => b.innerHTML = ic("play", 18)); };
+  const close = v => { stop(); el.remove(); if (v) onPick(v); };
+  const render = () => {
+    const list = (SONGS_LIST || []).filter(s => (cat === "all" || s.cat === cat) && (!q || (s.title + " " + s.artist).toLowerCase().includes(q)));
+    $("#sg-list", el).innerHTML = list.length ? list.map(s => `<div class="song-row${current && current.id === s.id ? " on" : ""}">
+        <button class="song-play" data-play="${s.id}" aria-label="השמעה">${playing === s.id ? ic("stop", 18) : ic("play", 18)}</button>
+        <button class="song-meta" data-pick="${s.id}"><b>${esc(s.title)}</b><span>${esc(s.artist)} · ${esc(SONG_CATS[s.cat] || "")} · ${fmtDur(s.dur)}</span></button>
+        <button class="chip" data-pick="${s.id}">${current && current.id === s.id ? "נבחר" : "בחירה"}</button></div>`).join("")
+      : `<div class="songs-empty">לא מצאנו שיר כזה</div>`;
+  };
+  let SONGS_LIST = null;
+  loadSongs().then(l => { SONGS_LIST = l; render(); }, () => { $("#sg-list", el).innerHTML = `<div class="songs-empty">לא הצלחנו לטעון את השירים. בדקו את החיבור</div>`; });
+  $("#sg-q", el).oninput = e => { q = e.target.value.trim().toLowerCase(); render(); };
+  $("#sg-cats", el).onclick = e => { const b = e.target.closest("[data-cat]"); if (!b) return; cat = b.dataset.cat; el.querySelectorAll("[data-cat]").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); };
+  el.onclick = e => {
+    if (e.target.closest("[data-x]")) return close();
+    if (e.target.closest("[data-own]")) return close({ kind: "own" });
+    if (e.target.closest("[data-gen]")) return close({ kind: "gen" });
+    const pl = e.target.closest("[data-play]");
+    if (pl) {
+      const s = SONGS_LIST.find(x => x.id === pl.dataset.play); if (!s) return;
+      if (playing === s.id) return stop();
+      stop(); playing = s.id; pl.innerHTML = ic("stop", 18);
+      audio.src = SONGS_BASE + s.id + ".mp3";
+      const from = bestPart(s, 20);
+      audio.addEventListener("loadedmetadata", () => { try { audio.currentTime = from; } catch {} }, { once: true });
+      audio.play().catch(() => stop());
+      return;
+    }
+    const pk = e.target.closest("[data-pick]");
+    if (pk) { const s = SONGS_LIST.find(x => x.id === pk.dataset.pick); if (s) close({ kind: "lib", song: s }); }
+  };
+  audio.onended = stop;
+  return el;
+}
 function recapSheet() {
   if (RECAP_JOB && RECAP_JOB.state !== "error") return recapJobSheet();
   const pool = recapPool();
   if (pool.length < 3) return toast("צריך לפחות 3 תמונות לסרטון", "album");
   let len = pool.length > 14 ? "full" : "short";
-  let style = store.get("recap.style", "auto"); if (style === "happy") style = "pop";
-  if (style !== "auto" && !MUSIC_STYLES[style] && !(style === "song" && RECAP_SONG)) style = "auto";
-  let seed = newSeed(), pv = null, busy = false, mood = null, moodSeq = 0;
-  const eff = () => style === "auto" ? (mood ? mood.style : "build") : style;          // the style that will actually play
-  const bpmNow = () => style === "song" ? RECAP_SONG.bpm : makeScore(eff(), seed).bpm;
-  const sense = () => { const my = ++moodSeq; recapMood(recapPick(len), seed).then(m => { if (my === moodSeq) { mood = m; if ($("#rc-style")) refreshUi(); } }, () => {}); };
+  let seed = newSeed(), pv = null, mood = null, moodSeq = 0, part = 0, partTouched = false;
+  // what plays: a song from the library (default), your own file, or original music
+  let sel = { kind: "lib", song: null, auto: true }, genStyle = "auto";
+  const saved = store.get("recap.song", null);
+  const eff = () => genStyle === "auto" ? (mood ? mood.style : "build") : genStyle;
+  const bpmNow = () => sel.kind === "own" && RECAP_SONG ? RECAP_SONG.bpm : sel.kind === "lib" && sel.song ? (sel.an?.bpm || sel.song.bpm || 100) : makeScore(eff(), seed).bpm;
+  const filmLen = () => recapEstimate(recapPick(len), bpmNow());
   let refreshUi = () => {};
+  const autoSong = async () => {
+    const list = await loadSongs().catch(() => null); if (!list || !mood) return;
+    const cats = MOOD_CATS[mood.style] || ["happy"], r = rngOf(seed + 3);
+    const pickFrom = list.filter(s => s.cat === (r() < .7 ? cats[0] : cats[Math.floor(r() * cats.length)]));
+    const s = (pickFrom.length ? pickFrom : list)[Math.floor(r() * (pickFrom.length || list.length))];
+    if (sel.kind === "lib" && sel.auto) setSong(s, true);
+  };
+  const setSong = (s, auto) => {
+    sel = { kind: "lib", song: s, auto: !!auto }; partTouched = false; part = bestPart(s, filmLen());
+    if (!auto) store.set("recap.song", s.id);
+    songBuffer(s).then(an => { if (sel.song === s) { sel.an = an; snap(); refreshUi(); } }, () => {});
+    refreshUi();
+  };
+  const snap = () => { const an = sel.an; if (!an) return; const beat = 60 / an.bpm; part = Math.max(0, an.start + Math.round((part - an.start) / beat) * beat); if (part < 0) part = 0; };
+  const sense = () => { const my = ++moodSeq; recapMood(recapPick(len), seed).then(m => { if (my === moodSeq) { mood = m; if (sel.kind === "lib" && sel.auto) autoSong(); else refreshUi(); } }, () => {}); };
   const info = () => {
     const pick = recapPick(len), v = pick.filter(p => p.kind === "video").length;
-    return `${pick.length} רגעים${v ? `, מתוכם ${v} סרטונים` : ""}, בערך ${recapEstimate(pick, bpmNow())} שניות. ההכנה לוקחת בערך כמו אורך הסרטון, ואפשר להמשיך להשתמש באפליקציה בינתיים.`;
+    return `${pick.length} רגעים${v ? `, מתוכם ${v} סרטונים` : ""}, בערך ${filmLen()} שניות. ההכנה לוקחת בערך כמו אורך הסרטון, ואפשר להמשיך להשתמש באפליקציה בינתיים.`;
   };
-  const mnote = () => style === "song"
-    ? `${esc(RECAP_SONG.name)} · המעברים יתאימו לקצב של השיר`
-    : style === "auto"
-      ? (mood ? `בחרנו <b>${MUSIC_STYLES[mood.style].label}</b> לפי האווירה: ${esc(mood.why)}. מנגינה מקורית, כל פעם אחרת.` : "בודקים את האווירה של התמונות…")
-      : "מנגינה מקורית שנכתבת עכשיו רק בשבילכם, כל פעם אחרת";
+  const mnote = () => sel.kind === "own" ? (RECAP_SONG ? `${esc(RECAP_SONG.name)} · המעברים יתאימו לקצב של השיר` : "")
+    : sel.kind === "gen" ? (genStyle === "auto" ? (mood ? `מנגינה מקורית בסגנון <b>${MUSIC_STYLES[mood.style].label}</b>, לפי האווירה` : "בודקים את האווירה…") : "מנגינה מקורית שנכתבת עכשיו, כל פעם אחרת")
+    : sel.song ? (sel.auto && mood ? `בחרנו לפי האווירה: ${esc(mood.why)}. אפשר להחליף.` : "גררו את החלון כדי לבחור את החלק בשיר")
+    : "בודקים את האווירה ובוחרים שיר…";
   openSheet("סרטון הסיכום", `<div class="stack">
     <div class="recap-prev"><canvas id="rc-cv" width="270" height="480"></canvas><video id="rc-vid" playsinline controls hidden></video></div>
     ${pool.length > 10 ? `<div class="seg" role="group" id="rc-len">${Object.entries(RECAP_LEN).map(([k, o]) => `<button data-len="${k}" aria-pressed="${k === len}">${o.label}</button>`).join("")}</div>` : ""}
     <div class="rc-music">
       <span class="eyebrow">מוזיקה</span>
-      <div class="chips" id="rc-style"><button class="chip" data-style="auto" aria-pressed="${style === "auto"}">${ic("sparkle", 15)} לפי האווירה</button>${Object.entries(MUSIC_STYLES).map(([k, o]) => `<button class="chip" data-style="${k}" aria-pressed="${k === style}">${o.label}</button>`).join("")}<button class="chip" data-style="song" aria-pressed="${style === "song"}">${ic("music", 15)} השיר שלכם</button></div>
-      <div class="rc-mrow"><button class="btn ghost sm" id="rc-listen">${ic("play", 16)}שמיעה</button><button class="btn ghost sm" id="rc-dice" ${style === "song" ? "hidden" : ""}>${ic("dice", 17)}מנגינה אחרת</button></div>
-      <p class="small muted" id="rc-mnote">${mnote()}</p>
+      <button class="song-card" id="rc-song" type="button"><span class="song-art">${ic("music", 22)}</span><span class="grow"><b id="rc-st">שיר</b><span id="rc-sa"></span></span><span class="chip">החלפה</span></button>
+      <div class="song-part" id="rc-part" dir="ltr"><canvas id="rc-wave" height="56"></canvas><div class="song-times" id="rc-times"></div></div>
+      <div class="chips" id="rc-style" hidden><button class="chip" data-style="auto">${ic("sparkle", 15)} לפי האווירה</button>${Object.entries(MUSIC_STYLES).map(([k, o]) => `<button class="chip" data-style="${k}">${o.label}</button>`).join("")}</div>
+      <div class="rc-mrow"><button class="btn ghost sm" id="rc-listen">${ic("play", 16)}שמיעה</button><button class="btn ghost sm" id="rc-dice" hidden>${ic("dice", 17)}מנגינה אחרת</button></div>
+      <p class="small muted" id="rc-mnote"></p>
       <label class="rc-toggle" id="rc-ca-row" ${recapPick(len).some(p => p.kind === "video") ? "" : "hidden"}><input type="checkbox" id="rc-ca" ${store.get("recap.clipaudio", true) ? "checked" : ""}><span><b>סאונד מהסרטונים</b><span class="small muted">המוזיקה יורדת כשמדברים או צועקים בסרטון</span></span></label>
       <input type="file" id="rc-file" accept="audio/*,.mp3,.m4a,.aac,.wav" hidden>
     </div>
-    <p class="small muted" id="rc-info">${info()}</p>
+    <p class="small muted" id="rc-info"></p>
     <div class="progress" id="rc-prog" hidden><i style="width:0"></i></div>
     <button class="btn block gold" id="rc-go">${ic("sparkle", 20)}יוצרים את הסרטון</button>
-    <p class="tiny muted" style="text-align:center">כלי הנגינה: Salamander Grand Piano ו-FluidR3, ברישיון CC BY 3.0</p>
   </div>`, sh => {
     const go = $("#rc-go", sh), seg = $("#rc-len", sh), chips = $("#rc-style", sh), lis = $("#rc-listen", sh), dice = $("#rc-dice", sh), file = $("#rc-file", sh);
-    const refresh = refreshUi = () => {
-      chips.querySelectorAll("[data-style]").forEach(b => b.setAttribute("aria-pressed", b.dataset.style === style));
-      dice.hidden = style === "song"; $("#rc-mnote", sh).innerHTML = mnote(); $("#rc-info", sh).textContent = info();
+    const wave = $("#rc-wave", sh), partEl = $("#rc-part", sh);
+    const drawWave = () => {
+      const s = sel.kind === "lib" ? sel.song : null; partEl.hidden = !s; if (!s) return;
+      const W = wave.clientWidth || 300, H = 56, dpr = window.devicePixelRatio || 1; wave.width = W * dpr; wave.height = H * dpr;
+      const x = wave.getContext("2d"); x.scale(dpr, dpr); x.clearRect(0, 0, W, H);
+      const L = filmLen(), a = part / s.dur * W, b = Math.min(W, (part + L) / s.dur * W), cs = getComputedStyle(document.documentElement);
+      const n = s.wave.length, bw = W / n;
+      s.wave.forEach((v, i) => { const h = Math.max(3, v / 100 * (H - 8)), px = i * bw; x.fillStyle = px >= a && px <= b ? cs.getPropertyValue("--gold").trim() || "#C9A65A" : "rgba(127,127,127,.35)"; x.fillRect(px + bw * .15, (H - h) / 2, bw * .7, h); });
+      x.strokeStyle = cs.getPropertyValue("--gold").trim() || "#C9A65A"; x.lineWidth = 2; x.beginPath(); x.roundRect ? x.roundRect(a + 1, 1, Math.max(8, b - a - 2), H - 2, 8) : x.rect(a + 1, 1, b - a - 2, H - 2); x.stroke();
+      $("#rc-times", sh).textContent = `${fmtDur(part)} – ${fmtDur(Math.min(s.dur, part + L))}`;
     };
-    sense();
+    const refresh = refreshUi = () => {
+      if (!sh.isConnected) return;
+      const s = sel.kind === "lib" ? sel.song : null;
+      $("#rc-st", sh).textContent = sel.kind === "own" ? (RECAP_SONG ? RECAP_SONG.name : "שיר מהטלפון") : sel.kind === "gen" ? "מנגינה מקורית" : s ? s.title : "בוחרים שיר…";
+      $("#rc-sa", sh).textContent = sel.kind === "own" ? "מהטלפון שלכם" : sel.kind === "gen" ? (genStyle === "auto" ? "לפי האווירה" : MUSIC_STYLES[genStyle].label) : s ? `${s.artist} · ${SONG_CATS[s.cat] || ""}` : "";
+      chips.hidden = sel.kind !== "gen"; dice.hidden = sel.kind !== "gen";
+      chips.querySelectorAll("[data-style]").forEach(b => b.setAttribute("aria-pressed", b.dataset.style === genStyle));
+      $("#rc-mnote", sh).innerHTML = mnote(); $("#rc-info", sh).textContent = info(); drawWave();
+    };
     const stopPv = () => {
       if (!pv) return; const p = pv; pv = null; clearTimeout(p.timer);
-      try { p.h.stop(); } catch {} setTimeout(() => { try { p.ac.close(); } catch {} }, 500);
+      try { p.h.stop(); } catch {} setTimeout(() => { try { p.ac && p.ac.close(); } catch {} }, 500);
       lis.innerHTML = `${ic("play", 16)}שמיעה`;
     };
-    // stop the music when the sheet goes away, whatever closed it
     const mo = new MutationObserver(() => { if (!sh.isConnected) { stopPv(); mo.disconnect(); } }); mo.observe(document.body, { childList: true, subtree: true });
+    // choose the part of the song by dragging along the waveform
+    let drag = null;
+    wave.addEventListener("pointerdown", e => { const s = sel.song; if (sel.kind !== "lib" || !s) return; stopPv(); drag = { x: e.clientX, p: part }; wave.setPointerCapture(e.pointerId); });
+    wave.addEventListener("pointermove", e => { if (!drag) return; const s = sel.song, W = wave.clientWidth; part = Math.max(0, Math.min(s.dur - Math.min(s.dur, filmLen()), drag.p + (e.clientX - drag.x) / W * s.dur)); partTouched = true; drawWave(); });
+    const end = () => { if (!drag) return; drag = null; snap(); drawWave(); }; wave.addEventListener("pointerup", end); wave.addEventListener("pointercancel", end);
+    $("#rc-song", sh).onclick = () => { stopPv(); songPicker(sel.song, v => {
+      if (v.kind === "lib") setSong(v.song, false);
+      else if (v.kind === "own") { if (RECAP_SONG) { sel = { kind: "own" }; refresh(); } file.click(); }
+      else { sel = { kind: "gen" }; if (genStyle === "auto") sense(); refresh(); }
+    }); };
     lis.onclick = async () => {
       if (pv) return stopPv();
+      if (sel.kind === "lib") {
+        const s = sel.song; if (!s) return;
+        const a = new Audio(SONGS_BASE + s.id + ".mp3"); const from = part;
+        a.addEventListener("loadedmetadata", () => { try { a.currentTime = from; } catch {} }, { once: true });
+        a.play().catch(() => stopPv());
+        pv = { h: { stop() { a.pause(); } }, timer: setTimeout(stopPv, Math.min(20, filmLen()) * 1000) };
+        lis.innerHTML = `${ic("stop", 16)}עצירה`; return;
+      }
       let ac; try { ac = new (window.AudioContext || window.webkitAudioContext)(); await ac.resume(); } catch { return toast("הטלפון לא מצליח לנגן כרגע", "x"); }
       let h, dur;
-      if (style === "song") {
+      if (sel.kind === "own") {
+        if (!RECAP_SONG) return;
         const s = ac.createBufferSource(), g = ac.createGain(), t = ac.currentTime + .05; dur = 16;
         s.buffer = RECAP_SONG.buf; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + .4); g.gain.setValueAtTime(1, t + dur - 2); g.gain.linearRampToValueAtTime(0, t + dur);
         s.connect(g); g.connect(ac.destination); s.start(t, RECAP_SONG.start); h = { stop() { try { s.stop(); } catch {} } };
@@ -1710,18 +1853,14 @@ function recapSheet() {
         const my = pv = { ac, h: { stop() {} }, timer: 0 };
         lis.innerHTML = `<span class="spin"></span>טוענים כלי נגינה…`;
         let inst; try { inst = await loadScoreInstruments(ac, sc); } catch { if (pv === my) stopPv(); return toast("לא הצלחנו לטעון את הכלים. בדקו את החיבור", "x"); }
-        if (pv !== my) { try { ac.close(); } catch {} return; }           // stopped while loading
+        if (pv !== my) { try { ac.close(); } catch {} return; }
         h = playScore(ac, ac.destination, ac.currentTime + .1, sc, sec, inst);
       }
       if (pv && pv.ac === ac) { pv.h = h; pv.timer = setTimeout(stopPv, dur * 1000 + 400); } else pv = { ac, h, timer: setTimeout(stopPv, dur * 1000 + 400) };
       lis.innerHTML = `${ic("stop", 16)}עצירה`;
     };
-    dice.onclick = () => { const wasOn = !!pv; stopPv(); seed = newSeed(); if (style === "auto") sense(); refresh(); if (wasOn) lis.onclick(); };
-    chips.onclick = e => {
-      const b = e.target.closest("[data-style]"); if (!b || busy) return;
-      if (b.dataset.style === "song" && (!RECAP_SONG || style === "song")) return file.click();
-      stopPv(); style = b.dataset.style; store.set("recap.style", style); refresh();
-    };
+    dice.onclick = () => { const wasOn = !!pv; stopPv(); seed = newSeed(); if (genStyle === "auto") sense(); refresh(); if (wasOn) lis.onclick(); };
+    chips.onclick = e => { const b = e.target.closest("[data-style]"); if (!b) return; stopPv(); genStyle = b.dataset.style; if (genStyle === "auto") sense(); refresh(); };
     file.onchange = async () => {
       const f = file.files && file.files[0]; file.value = ""; if (!f) return;
       if (f.size > 60 * 1024 * 1024) return toast("הקובץ גדול מדי. נסו MP3 או M4A", "x");
@@ -1732,21 +1871,36 @@ function recapSheet() {
         try { ac.close(); } catch {}
         if (buf.duration < 20) throw new Error("short");
         RECAP_SONG = { buf, name: f.name.replace(/\.[^.]+$/, ""), ...analyzeSong(buf) };
-        style = "song"; store.set("recap.style", "song"); refresh();
+        sel = { kind: "own" }; refresh();
       } catch (e) { console.warn(e); refresh(); toast("לא הצלחנו לקרוא את הקובץ. נסו קובץ MP3 או M4A", "x"); }
     };
     if (seg) seg.onclick = e => {
-      const b = e.target.closest("[data-len]"); if (!b || busy || go.dataset.file) return;
-      len = b.dataset.len; seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#rc-info", sh).textContent = info();
-      $("#rc-ca-row", sh).hidden = !recapPick(len).some(p => p.kind === "video"); sense();
+      const b = e.target.closest("[data-len]"); if (!b) return;
+      len = b.dataset.len; seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+      $("#rc-ca-row", sh).hidden = !recapPick(len).some(p => p.kind === "video");
+      if (sel.kind === "lib" && sel.song && !partTouched) { part = bestPart(sel.song, filmLen()); snap(); }
+      sense(); refresh();
     };
-    go.onclick = () => {
+    go.onclick = async () => {
       stopPv();
-      const music = style === "song" ? { song: RECAP_SONG } : { score: makeScore(eff(), seed) };
+      let music;
+      if (sel.kind === "lib") {
+        if (!sel.song) return toast("רגע, עוד בוחרים שיר", "music");
+        if (!sel.an) {   // the song is still on its way: wait, then ask for one more tap so sound can start
+          go.disabled = true; go.innerHTML = `<span class="spin"></span>טוענים את השיר…`;
+          try { sel.an = await songBuffer(sel.song); snap(); toast("השיר מוכן", "check"); } catch { toast("לא הצלחנו לטעון את השיר. נסו שוב", "x"); }
+          go.disabled = false; go.innerHTML = `${ic("sparkle", 20)}יוצרים את הסרטון`; drawWave(); return;
+        }
+        music = { song: { buf: sel.an.buf, bpm: sel.an.bpm, start: part, name: sel.song.title, credit: sel.song.credit } };
+      } else if (sel.kind === "own" && RECAP_SONG) music = { song: RECAP_SONG };
+      else music = { score: makeScore(eff(), seed) };
       const ca = $("#rc-ca", sh); music.clipAudio = ca ? ca.checked : true; store.set("recap.clipaudio", music.clipAudio);
       startRecap(recapPick(len), music);
       recapJobSheet();
     };
+    // start from the last song they chose, otherwise let the mood choose
+    loadSongs().then(list => { const s = saved && list.find(x => x.id === saved); if (s && sel.auto && !sel.song) setSong(s, false); }, () => { sel = { kind: "gen" }; refresh(); });
+    sense(); refresh();
   });
 }
 let RECAP_FILE = null, RECAP_JOB = null;
@@ -2021,7 +2175,7 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
     for (const s of segs) {
       if (s.kind !== "vid") continue;
       const on = t >= s.t - .05 && t < s.t + s.dur + FADE;
-      if (on && !clipPlaying.has(s)) { clipPlaying.add(s); s.m.v.play().catch(() => {}); }
+      if (on && !clipPlaying.has(s)) { clipPlaying.add(s); s.m.v.play().catch(() => { s.m.v.muted = true; s.m.v.play().catch(() => {}); }); }
       if (!on && clipPlaying.has(s) && !s.m.v.paused) s.m.v.pause();
     }
     const cur = segs[i], prev = segs[i - 1], l = t - cur.t;
@@ -2054,6 +2208,7 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
       portrait(Wd / 2, Ht * .4, 150, a);
       title(names, 112, Ht * .58, "#F6EEF2", a);
       title("שני צדדים · " + dateStr, 40, Ht * .64, gold, a * ease((t - out.t) / .8), "Rubik", 400);
+      if (music.song && music.song.credit) title("♪ " + music.song.credit, 26, Ht - 120, "#B9A9B5", a * ease((t - out.t - .3) / .8), "Rubik", 400);
     }
     const pc = pvOf(); if (pc) pc.getContext("2d").drawImage(cv, 0, 0, pc.width, pc.height);
   };
@@ -2089,7 +2244,9 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
       const s = ac.createBufferSource(), g = ac.createGain(); s.buffer = music.song.buf;
       g.gain.setValueAtTime(0, audioT0); g.gain.linearRampToValueAtTime(1, audioT0 + .5);
       g.gain.setValueAtTime(1, audioT0 + total - 3.2); g.gain.linearRampToValueAtTime(0, audioT0 + total);
-      s.connect(g); g.connect(duck); s.start(audioT0, Math.min(music.song.start, Math.max(0, music.song.buf.duration - total))); band = { stop() { try { s.stop(); } catch {} } };
+      const from = Math.max(0, Math.min(music.song.start, music.song.buf.duration - total));
+      if (music.song.buf.duration < from + total) s.loop = true;
+      s.connect(g); g.connect(duck); s.start(audioT0, from); band = { stop() { try { s.stop(); } catch {} } };
     } else if (inst) band = playScore(ac, duck, audioT0, music.score, sec, inst);
     tracks.push(...dest.stream.getAudioTracks());
   }
