@@ -450,6 +450,8 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
 .lb-stage video{max-width:100%;max-height:100%;display:block;background:#000}
 .upq{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 66px);z-index:45;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 10px;border-radius:999px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;box-shadow:0 10px 30px rgb(0 0 0 / .22);white-space:nowrap;animation:up .25s}
+.recap-pill{border:0;cursor:pointer;font:inherit;font-size:13.5px;font-weight:600}
+.recap-pill.low{top:calc(env(safe-area-inset-top,0px) + 112px)}
 .upq-ring{width:22px;height:22px;border-radius:50%;flex:none;background:conic-gradient(var(--gold) calc(var(--p) * 1%),rgb(127 127 127 / .35) 0);-webkit-mask:radial-gradient(circle,transparent 6px,#000 7px);mask:radial-gradient(circle,transparent 6px,#000 7px)}
 .offline{top:calc(env(safe-area-inset-top,0px) + 110px)}
 .prev-v{display:grid;place-items:center;color:var(--muted);font-size:11px;font-weight:600;gap:2px;align-content:center}
@@ -1553,6 +1555,7 @@ function analyzeSong(buf) {
 }
 let RECAP_SONG = null;
 function recapSheet() {
+  if (RECAP_JOB && RECAP_JOB.state !== "error") return recapJobSheet();
   const pool = recapPool();
   if (pool.length < 3) return toast("צריך לפחות 3 תמונות לסרטון", "album");
   let len = pool.length > 14 ? "full" : "short";
@@ -1561,7 +1564,7 @@ function recapSheet() {
   const bpmNow = () => style === "song" ? RECAP_SONG.bpm : makeScore(style, seed).bpm;
   const info = () => {
     const pick = recapPick(len), v = pick.filter(p => p.kind === "video").length;
-    return `${pick.length} רגעים${v ? `, מתוכם ${v} סרטונים` : ""}, בערך ${recapEstimate(pick, bpmNow())} שניות. ההכנה לוקחת בערך כמו אורך הסרטון, השאירו את המסך פתוח.`;
+    return `${pick.length} רגעים${v ? `, מתוכם ${v} סרטונים` : ""}, בערך ${recapEstimate(pick, bpmNow())} שניות. ההכנה לוקחת בערך כמו אורך הסרטון, ואפשר להמשיך להשתמש באפליקציה בינתיים.`;
   };
   const mnote = () => style === "song"
     ? `${esc(RECAP_SONG.name)} · המעברים יתאימו לקצב של השיר`
@@ -1630,29 +1633,132 @@ function recapSheet() {
       const b = e.target.closest("[data-len]"); if (!b || busy || go.dataset.file) return;
       len = b.dataset.len; seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#rc-info", sh).textContent = info();
     };
-    go.onclick = async () => {
-      if (go.dataset.file) { const r = await shareOrDownload(RECAP_FILE); if (r === "downloaded") toast("הסרטון ירד", "check"); return; }
-      stopPv(); busy = true;
-      go.disabled = true; go.innerHTML = `<span class="spin"></span>מכינים…`;
-      [seg, $(".rc-music", sh)].forEach(el => el && (el.style.opacity = ".5", el.style.pointerEvents = "none"));
-      $("#rc-prog", sh).hidden = false;
-      try {
-        const music = style === "song" ? { song: RECAP_SONG } : { score: makeScore(style, seed) };
-        RECAP_FILE = await makeRecap(recapPick(len), $("#rc-cv", sh), p => { const b = $("#rc-prog i", sh); if (b) b.style.width = Math.round(p * 100) + "%"; }, music);
-        go.dataset.file = "1"; go.disabled = false; go.innerHTML = `${ic("save", 20)}שמירה ושיתוף`;
-        $("#rc-info", sh).textContent = "מוכן! צפו, ואז שמרו לגלריה או שתפו ישר לוואטסאפ.";
-        $("#rc-prog", sh).hidden = true; $(".rc-music", sh).hidden = true; if (seg) seg.hidden = true;
-        const vid = $("#rc-vid", sh); vid.src = URL.createObjectURL(RECAP_FILE); vid.hidden = false; $("#rc-cv", sh).hidden = true;
-      } catch (e) {
-        console.warn(e); busy = false; go.disabled = false; go.innerHTML = `${ic("sparkle", 20)}נסו שוב`;
-        [seg, $(".rc-music", sh)].forEach(el => el && (el.style.opacity = "", el.style.pointerEvents = ""));
-        toast(e && e.code === "too_big" ? "הטלפון הזה לא תומך ביצירת וידאו. נסו מטלפון אחר" : "לא הצלחנו ליצור את הסרטון. נסו שוב", "x");
-      }
+    go.onclick = () => {
+      stopPv();
+      const music = style === "song" ? { song: RECAP_SONG } : { score: makeScore(style, seed) };
+      startRecap(recapPick(len), music);
+      recapJobSheet();
     };
   });
 }
-let RECAP_FILE = null;
-async function makeRecap(pick, preview, onProg, music = { score: makeScore("build", newSeed()) }) {
+let RECAP_FILE = null, RECAP_JOB = null;
+// The film is made while the app stays open: the user can keep browsing, a pill shows progress.
+// Phones freeze a page that is not on screen, so leaving pauses the recording cleanly and returning continues it.
+function startRecap(pick, music) {
+  const job = { state: "run", p: 0, file: null, paused: false, needTap: false, seen: false, left: 0 };
+  job.ctl = {
+    preview: null,
+    onPause: () => { job.paused = true; recapUi(); recapAway(job); },
+    onResume: () => { job.paused = false; job.needTap = false; recapUi(); cancelLocal(71); },
+    onNeedTap: () => { job.needTap = true; recapUi(); },
+    onTotal: s => { job.total = s; },
+  };
+  RECAP_JOB = job;
+  try { const ln = LN(); if (ln) ln.requestPermissions().catch(() => {}); } catch {}
+  recapUi();
+  makeRecap(pick, null, p => { job.p = p; recapUi(true); }, music, job.ctl).then(f => {
+    job.state = "done"; job.file = RECAP_FILE = f; job.p = 1; cancelLocal(71);
+    if (document.hidden) { job.doneAway = true; notifyLocal(72, "סרטון הסיכום מוכן 🎬", "לחצו כדי לצפות בו ולשמור אותו"); }
+    else if (!$("#rc-root")) toast("סרטון הסיכום מוכן", "play");
+    recapUi();
+  }, e => {
+    console.warn(e); job.state = "error"; job.err = e; cancelLocal(71);
+    if (document.hidden) notifyLocal(72, "סרטון הסיכום לא הושלם", "פתחו את האפליקציה ונסו שוב");
+    recapUi();
+  });
+}
+function recapAway(job) {
+  if (!document.hidden || job.state !== "run") return;
+  const left = job.total ? Math.max(5, Math.round((1 - job.p) * job.total)) : 0;
+  notifyLocal(71, "סרטון הסיכום מחכה לכם", left ? `נשארו בערך ${left} שניות. חזרו לאפליקציה כדי לסיים אותו` : "חזרו לאפליקציה כדי לסיים אותו", 1500);
+}
+const LN = () => (IS_NATIVE && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null;
+async function notifyLocal(id, title, body, delayMs = 0) {
+  const ln = LN();
+  if (ln) {
+    try { await ln.schedule({ notifications: [{ id, title, body, ...(delayMs ? { schedule: { at: new Date(Date.now() + delayMs), allowWhileIdle: true } } : {}) }] }); } catch (e) { console.warn(e); }
+    return;
+  }
+  if (IS_NATIVE || !("Notification" in window) || Notification.permission !== "granted" || !("serviceWorker" in navigator)) return;
+  try {
+    const reg = swReg || await navigator.serviceWorker.getRegistration(); if (!reg) return;
+    await reg.showNotification(title, { body, tag: "recap-" + id, icon: "icon-192.png", badge: "icon-192.png", dir: "rtl", lang: "he", data: { url: reg.scope + "#recap" } });
+  } catch {}
+}
+async function cancelLocal(id) {
+  const ln = LN();
+  if (ln) { try { await ln.cancel({ notifications: [{ id }] }); } catch {} return; }
+  try { const reg = swReg || await navigator.serviceWorker?.getRegistration(); if (reg) (await reg.getNotifications({ tag: "recap-" + id })).forEach(n => n.close()); } catch {}
+}
+document.addEventListener("visibilitychange", () => {
+  const job = RECAP_JOB;
+  if (document.hidden || !job) return;
+  if (job.state === "done" || job.state === "error") cancelLocal(72);
+  if (job.state === "done" && job.doneAway && !job.seen) { job.doneAway = false; setTimeout(() => { if (!$("#sheet")) recapSheet(); }, 300); }
+});
+function recapUi(progressOnly) {
+  const job = RECAP_JOB, root = $("#rc-root");
+  let pill = $("#recap-pill");
+  const show = job && !root && !(job.state === "done" && job.seen);
+  if (!show) { if (pill) pill.remove(); }
+  else {
+    if (!pill) {
+      pill = document.createElement("button"); pill.id = "recap-pill"; pill.className = "upq recap-pill"; pill.type = "button";
+      pill.onclick = () => { const j = RECAP_JOB; if (j && j.needTap) return j.ctl.resume(); recapSheet(); };
+      document.body.appendChild(pill);
+    }
+    pill.classList.toggle("low", !!$("#upq"));
+    const pct = Math.round(job.p * 100);
+    pill.innerHTML = job.state === "done" ? `${ic("play", 18)}<span>סרטון הסיכום מוכן · לצפייה</span>`
+      : job.state === "error" ? `${ic("x", 18)}<span>הסרטון לא הצליח · לנסות שוב</span>`
+      : job.needTap ? `${ic("play", 18)}<span>לחצו כדי להמשיך את הסרטון</span>`
+      : `<span class="upq-ring" style="--p:${pct}"></span><span>מכינים את סרטון הסיכום · ${pct}%</span>`;
+  }
+  if (!root || !job) return;
+  const bar = $("#rc-prog i", root); if (bar) bar.style.width = Math.round(job.p * 100) + "%";
+  if (progressOnly) return;
+  const go = $("#rc-go", root), info = $("#rc-info", root);
+  if (job.state === "done") {
+    job.seen = true;
+    const vid = $("#rc-vid", root);
+    if (!vid.src) { vid.src = URL.createObjectURL(job.file); vid.hidden = false; $("#rc-cv", root).hidden = true; }
+    $("#rc-prog", root).hidden = true; $("#rc-new", root).hidden = false;
+    info.textContent = "מוכן! צפו, ואז שמרו לגלריה או שתפו ישר לוואטסאפ.";
+    go.innerHTML = `${ic("save", 20)}שמירה ושיתוף`;
+  } else if (job.state === "error") {
+    info.textContent = "משהו השתבש בהכנת הסרטון.";
+    go.innerHTML = `${ic("sparkle", 20)}נסו שוב`;
+  } else if (job.needTap) {
+    info.textContent = "חזרתם! לחצו כדי להמשיך מאיפה שעצרנו.";
+    go.innerHTML = `${ic("play", 20)}להמשיך`;
+  } else {
+    info.textContent = "מכינים… אפשר לסגור את החלון ולהמשיך להשתמש באפליקציה. אם יוצאים מהאפליקציה ההכנה נעצרת, וממשיכה כשחוזרים.";
+    go.innerHTML = `להמשיך ברקע`;
+  }
+}
+function recapJobSheet() {
+  const job = RECAP_JOB; if (!job) return recapSheet();
+  openSheet("סרטון הסיכום", `<div class="stack" id="rc-root">
+    <div class="recap-prev"><canvas id="rc-cv" width="270" height="480"></canvas><video id="rc-vid" playsinline controls hidden></video></div>
+    <div class="progress" id="rc-prog"><i style="width:0"></i></div>
+    <p class="small muted" id="rc-info"></p>
+    <button class="btn block gold" id="rc-go"></button>
+    <button class="btn line block" id="rc-new" hidden>${ic("sparkle", 18)}סרטון חדש</button>
+  </div>`, sh => {
+    job.ctl.preview = $("#rc-cv", sh);
+    const mo = new MutationObserver(() => { if (!sh.isConnected) { mo.disconnect(); if (job.ctl.preview && !job.ctl.preview.isConnected) job.ctl.preview = null; recapUi(); } });
+    mo.observe(document.body, { childList: true, subtree: true });
+    $("#rc-go", sh).onclick = async () => {
+      if (job.state === "done") { const r = await shareOrDownload(job.file); if (r === "downloaded") toast("הסרטון ירד", "check"); return; }
+      if (job.state === "error") { RECAP_JOB = null; recapUi(); return recapSheet(); }
+      if (job.needTap) return job.ctl.resume();
+      closeSheet();
+    };
+    $("#rc-new", sh).onclick = () => { RECAP_JOB = null; recapUi(); recapSheet(); };
+    recapUi();
+  });
+}
+async function makeRecap(pick, preview, onProg, music = { score: makeScore("build", newSeed()) }, ctl = {}) {
   if (!canCompress()) throw new ApiError("too_big");
   const Wd = 1080, Ht = 1920, FADE = .45;
   const BEAT = 60 / (music.song ? music.song.bpm : music.score.bpm), PB = photoBeats(BEAT);
@@ -1705,7 +1811,8 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
 
   // 3) drawing
   const cv = document.createElement("canvas"); cv.width = Wd; cv.height = Ht;
-  const x = cv.getContext("2d", { alpha: false }); const pv = preview && preview.getContext("2d");
+  const x = cv.getContext("2d", { alpha: false });
+  const pvOf = () => { const c = ctl.preview || preview; return c && c.isConnected ? c : null; };
   x.imageSmoothingQuality = "high";
   await document.fonts.ready;
   const gold = "#C9A65A", groomC = "#2E7F83", brideC = "#C2557A";
@@ -1825,10 +1932,17 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
       title(names, 112, Ht * .58, "#F6EEF2", a);
       title("שני צדדים · " + dateStr, 40, Ht * .64, gold, a * ease((t - out.t) / .8), "Rubik", 400);
     }
-    if (pv) pv.drawImage(cv, 0, 0, preview.width, preview.height);
+    const pc = pvOf(); if (pc) pc.getContext("2d").drawImage(cv, 0, 0, pc.width, pc.height);
   };
 
   // 4) record, with the picture clock locked to the music clock
+  ctl.onTotal && ctl.onTotal(total);
+  if (document.hidden) {           // never start recording behind the user's back
+    ctl.onPause && ctl.onPause();
+    await new Promise(r => { const f = () => { if (!document.hidden) { document.removeEventListener("visibilitychange", f); r(); } }; document.addEventListener("visibilitychange", f); });
+    ctl.onResume && ctl.onResume();
+  }
+  if (ac && ac.state !== "running") { try { await Promise.race([ac.resume(), new Promise(r => setTimeout(r, 1500))]); } catch {} }
   const stream = cv.captureStream(30);
   const tracks = [...stream.getVideoTracks()];
   const LEAD = .25;
@@ -1851,15 +1965,41 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
   const stopped = new Promise(r => rec.onstop = r);
   let wake = null; try { wake = await navigator.wakeLock?.request("screen"); } catch {}
   frame(0); rec.start(1000);
-  const start = performance.now() + LEAD * 1000;
+  let start = performance.now() + LEAD * 1000;
   const clock = () => ac ? ac.currentTime - audioT0 : (performance.now() - start) / 1000;
+  // leaving the app freezes the page: pause everything together, then pick up exactly where it stopped
+  let paused = false, pausedAt = 0, held = [];
+  const pause = () => {
+    if (paused) return; paused = true; pausedAt = performance.now();
+    try { if (rec.state === "recording") rec.pause(); } catch {}
+    held = media.filter(m => m.v && !m.v.paused); held.forEach(m => { try { m.v.pause(); } catch {} });
+    try { ac && ac.suspend(); } catch {}
+    try { wake && wake.release(); } catch {} wake = null;
+    ctl.onPause && ctl.onPause();
+  };
+  const resume = async () => {
+    if (!paused || document.hidden) return;
+    if (ac) {
+      try { await Promise.race([ac.resume(), new Promise(r => setTimeout(r, 1500))]); } catch {}
+      if (ac.state !== "running") { ctl.onNeedTap && ctl.onNeedTap(); return; }   // iPhone may want a tap to restart sound
+    } else start += performance.now() - pausedAt;
+    held.forEach(m => m.v.play().catch(() => {})); held = [];
+    try { if (rec.state === "paused") rec.resume(); } catch {}
+    try { wake = await navigator.wakeLock?.request("screen"); } catch {}
+    paused = false; ctl.onResume && ctl.onResume();
+  };
+  ctl.resume = resume;
+  const onVis = () => { if (document.hidden) pause(); else resume(); };
+  document.addEventListener("visibilitychange", onVis);
   await new Promise(res => {
     const iv = setInterval(() => {
+      if (paused) return;
       const now = Math.max(0, clock());
       frame(Math.min(now, total)); onProg(.15 + .85 * Math.min(1, now / total));
       if (now >= total) { clearInterval(iv); res(); }
     }, 1000 / 30);
   });
+  document.removeEventListener("visibilitychange", onVis);
   rec.stop(); await stopped;
   try { band && band.stop(); } catch {}
   tracks.forEach(t => t.stop()); try { ac && ac.close(); } catch {} try { wake && wake.release(); } catch {}
@@ -3373,7 +3513,9 @@ document.addEventListener("click", async e => {
     case "push-hide": store.set("push.hide", true); return render();
   }
 });
-window.addEventListener("hashchange", () => { if (S.st) setView(isGuest() && !GUEST_VIEWS.includes(location.hash.slice(1)) ? "home" : location.hash.slice(1)); });
+window.addEventListener("hashchange", () => {
+  if (location.hash === "#recap") { history.replaceState(null, "", "#home"); if (S.st) { setView("home"); if (RECAP_JOB) recapSheet(); } return; }
+  if (S.st) setView(isGuest() && !GUEST_VIEWS.includes(location.hash.slice(1)) ? "home" : location.hash.slice(1)); });
 
 /* ============ boot ============ */
 (async function boot() {
