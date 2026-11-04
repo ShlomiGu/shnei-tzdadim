@@ -450,6 +450,9 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .tile .vb{position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:600;color:#fff;background:rgb(0 0 0 / .5);padding:2px 8px 2px 6px;border-radius:999px;direction:ltr}
 .lb-stage video{max-width:100%;max-height:100%;display:block;background:#000}
 .upq{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 66px);z-index:45;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 10px;border-radius:999px;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;box-shadow:0 10px 30px rgb(0 0 0 / .22);white-space:nowrap;animation:up .25s}
+.rc-toggle{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:14px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
+.rc-toggle input{width:22px;height:22px;margin-top:2px;accent-color:var(--gold);flex:none}
+.rc-toggle b{display:block;font-weight:600;font-size:15px}
 .recap-pill{border:0;cursor:pointer;font:inherit;font-size:13.5px;font-weight:600}
 .recap-pill.low{top:calc(env(safe-area-inset-top,0px) + 112px)}
 .upq-ring{width:22px;height:22px;border-radius:50%;flex:none;background:conic-gradient(var(--gold) calc(var(--p) * 1%),rgb(127 127 127 / .35) 0);-webkit-mask:radial-gradient(circle,transparent 6px,#000 7px);mask:radial-gradient(circle,transparent 6px,#000 7px)}
@@ -1236,14 +1239,19 @@ async function loadForCanvas(url) {
   const b = await r.blob();
   try { return await createImageBitmap(b); } catch { const im = new Image(); im.src = URL.createObjectURL(b); await im.decode(); return im; }
 }
-function loadClip(p, beat) {
-  // a muted <video> parked at the best part of the clip, ready to play on cue
+function clipEl(p, withSound) {
+  const v = document.createElement("video");
+  v.muted = !withSound; v.playsInline = true; v.setAttribute("playsinline", ""); v.crossOrigin = "anonymous"; v.preload = "auto";
+  v.src = pub(p.path);
+  return v;
+}
+function loadClip(p, beat, pre) {
+  // a <video> parked at the best part of the clip, ready to play on cue
   return new Promise((res, rej) => {
-    const v = document.createElement("video");
-    v.muted = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.crossOrigin = "anonymous"; v.preload = "auto";
+    const v = pre || clipEl(p, false);
     const to = setTimeout(() => rej(new Error("clip timeout")), 25000);
     v.addEventListener("error", () => { clearTimeout(to); rej(new Error("clip")); }, { once: true });
-    v.addEventListener("loadedmetadata", () => {
+    const meta = () => {
       const d = v.duration;
       if (!isFinite(d) || d < 2) { clearTimeout(to); return rej(new Error("short")); }
       const beats = Math.min(clipBeatsMax(beat), Math.floor((d - .2) / beat)), len = beats * beat;
@@ -1251,8 +1259,9 @@ function loadClip(p, beat) {
       const start = Math.max(0, Math.min(d - len - .15, d * .3));   // skip the shaky first second, keep the action
       v.addEventListener("seeked", () => { clearTimeout(to); res({ v, beats, start }); }, { once: true });
       v.currentTime = start;
-    }, { once: true });
-    v.src = pub(p.path); v.load();
+    };
+    if (v.readyState >= 1) meta(); else v.addEventListener("loadedmetadata", meta, { once: true });
+    if (!pre) v.load();
   });
 }
 function blurredOf(im) {
@@ -1577,6 +1586,7 @@ function recapSheet() {
       <div class="chips" id="rc-style">${Object.entries(MUSIC_STYLES).map(([k, o]) => `<button class="chip" data-style="${k}" aria-pressed="${k === style}">${o.label}</button>`).join("")}<button class="chip" data-style="song" aria-pressed="${style === "song"}">${ic("music", 15)} השיר שלכם</button></div>
       <div class="rc-mrow"><button class="btn ghost sm" id="rc-listen">${ic("play", 16)}שמיעה</button><button class="btn ghost sm" id="rc-dice" ${style === "song" ? "hidden" : ""}>${ic("dice", 17)}מנגינה אחרת</button></div>
       <p class="small muted" id="rc-mnote">${mnote()}</p>
+      <label class="rc-toggle" id="rc-ca-row" ${recapPick(len).some(p => p.kind === "video") ? "" : "hidden"}><input type="checkbox" id="rc-ca" ${store.get("recap.clipaudio", true) ? "checked" : ""}><span><b>סאונד מהסרטונים</b><span class="small muted">המוזיקה יורדת כשמדברים או צועקים בסרטון</span></span></label>
       <input type="file" id="rc-file" accept="audio/*,.mp3,.m4a,.aac,.wav" hidden>
     </div>
     <p class="small muted" id="rc-info">${info()}</p>
@@ -1632,10 +1642,12 @@ function recapSheet() {
     if (seg) seg.onclick = e => {
       const b = e.target.closest("[data-len]"); if (!b || busy || go.dataset.file) return;
       len = b.dataset.len; seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#rc-info", sh).textContent = info();
+      $("#rc-ca-row", sh).hidden = !recapPick(len).some(p => p.kind === "video");
     };
     go.onclick = () => {
       stopPv();
       const music = style === "song" ? { song: RECAP_SONG } : { score: makeScore(style, seed) };
+      const ca = $("#rc-ca", sh); music.clipAudio = ca ? ca.checked : true; store.set("recap.clipaudio", music.clipAudio);
       startRecap(recapPick(len), music);
       recapJobSheet();
     };
@@ -1655,6 +1667,15 @@ function startRecap(pick, music) {
   };
   RECAP_JOB = job;
   try { const ln = LN(); if (ln) ln.requestPermissions().catch(() => {}); } catch {}
+  try { job.ctl.ac = new (window.AudioContext || window.webkitAudioContext)(); job.ctl.ac.resume().catch(() => {}); } catch { job.ctl.ac = null; }
+  job.ctl.clips = new Map();
+  if (music.clipAudio && job.ctl.ac) for (const p of pick.filter(x => x.kind === "video")) {
+    try {
+      const v = clipEl(p, true), src = job.ctl.ac.createMediaElementSource(v);
+      const pr = v.play(); if (pr && pr.then) pr.then(() => v.pause(), () => {}); else v.pause();   // unlocks playback with sound, inside the tap
+      job.ctl.clips.set(p.id, { v, src });
+    } catch (e) { console.warn("clip sound", e); }
+  }
   recapUi();
   makeRecap(pick, null, p => { job.p = p; recapUi(true); }, music, job.ctl).then(f => {
     job.state = "done"; job.file = RECAP_FILE = f; job.p = 1; cancelLocal(71);
@@ -1762,7 +1783,9 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
   if (!canCompress()) throw new ApiError("too_big");
   const Wd = 1080, Ht = 1920, FADE = .45;
   const BEAT = 60 / (music.song ? music.song.bpm : music.score.bpm), PB = photoBeats(BEAT);
-  let ac = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); await ac.resume(); } catch { ac = null; }
+  let ac = ctl.ac || null;
+  if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { ac = null; } }
+  if (ac) { try { await Promise.race([ac.resume(), new Promise(r => setTimeout(r, 1500))]); } catch {} }
 
   // 1) load everything first, so nothing stalls once recording starts
   const media = [];
@@ -1770,7 +1793,9 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
     const p = pick[i];
     try {
       if (p.kind === "video") {
-        const c = await loadClip(p, BEAT);
+        const pre = ctl.clips && ctl.clips.get(p.id);
+        const c = await loadClip(p, BEAT, pre && pre.v);
+        if (pre) c.src = pre.src;
         let poster = null; try { if (p.thumb_path) poster = await loadForCanvas(pub(p.thumb_path)); } catch {}
         media.push({ p, kind: "vid", ...c, im: poster });
       } else media.push({ p, kind: "img", im: await loadForCanvas(pub(p.path)), beats: PB });
@@ -1950,12 +1975,23 @@ async function makeRecap(pick, preview, onProg, music = { score: makeScore("buil
   let band = null;
   if (ac) {
     const dest = ac.createMediaStreamDestination(); audioT0 = ac.currentTime + LEAD;
+    const duck = ac.createGain(); duck.connect(dest);
+    const talk = ac.createDynamicsCompressor(); talk.threshold.value = -26; talk.ratio.value = 4; talk.attack.value = .005; talk.release.value = .25;
+    const lift = ac.createGain(); lift.gain.value = 1.6; talk.connect(lift); lift.connect(dest);
+    for (const s of segs) {
+      if (s.kind !== "vid" || !s.m.src) continue;
+      const g = ac.createGain(), a = audioT0 + s.t, b = a + s.dur;
+      g.gain.setValueAtTime(0, 0); g.gain.setValueAtTime(0, a); g.gain.linearRampToValueAtTime(1, a + .25);
+      g.gain.setValueAtTime(1, b - .1); g.gain.linearRampToValueAtTime(0, b + .35);
+      s.m.src.connect(g); g.connect(talk);
+      duck.gain.setTargetAtTime(.22, a - .15, .1); duck.gain.setTargetAtTime(1, b - .05, .3);
+    }
     if (music.song) {
       const s = ac.createBufferSource(), g = ac.createGain(); s.buffer = music.song.buf;
       g.gain.setValueAtTime(0, audioT0); g.gain.linearRampToValueAtTime(1, audioT0 + .5);
       g.gain.setValueAtTime(1, audioT0 + total - 3.2); g.gain.linearRampToValueAtTime(0, audioT0 + total);
-      s.connect(g); g.connect(dest); s.start(audioT0, Math.min(music.song.start, Math.max(0, music.song.buf.duration - total))); band = { stop() { try { s.stop(); } catch {} } };
-    } else band = playScore(ac, dest, audioT0, music.score, sec);
+      s.connect(g); g.connect(duck); s.start(audioT0, Math.min(music.song.start, Math.max(0, music.song.buf.duration - total))); band = { stop() { try { s.stop(); } catch {} } };
+    } else band = playScore(ac, duck, audioT0, music.score, sec);
     tracks.push(...dest.stream.getAudioTracks());
   }
   const mime = REC_MIMES.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } });
