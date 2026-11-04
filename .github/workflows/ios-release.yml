@@ -126,7 +126,7 @@ jobs:
         with: { name: xcode-logs, path: "${{ runner.temp }}/*.log", if-no-files-found: ignore }
 
       - name: Submit for App Review
-        if: inputs.submit != false || env.ONLY != ''
+        if: github.event_name != 'workflow_dispatch' || inputs.submit || env.ONLY != ''
         env: { ASC_KEY_ID: "${{ secrets.ASC_KEY_ID }}", ASC_ISSUER_ID: "${{ secrets.ASC_ISSUER_ID }}" }
         run: |
           N="$ONLY"; [ -z "$N" ] && N="$BUILD_NUM"
