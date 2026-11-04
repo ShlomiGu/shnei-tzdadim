@@ -2,6 +2,16 @@
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 
+// instrument samples for the recap music never change: keep them on the phone after the first time
+self.addEventListener("fetch", e => {
+  const u = new URL(e.request.url);
+  if (e.request.method !== "GET" || u.origin !== self.location.origin || !u.pathname.includes("/music/")) return;
+  e.respondWith(caches.open("music-v1").then(async c => {
+    const hit = await c.match(e.request); if (hit) return hit;
+    const r = await fetch(e.request); if (r.ok) c.put(e.request, r.clone()); return r;
+  }));
+});
+
 self.addEventListener("push", e => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
