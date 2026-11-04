@@ -421,6 +421,13 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .recap-prev{display:grid;place-items:center}
 .recap-prev canvas,.recap-prev video{width:180px;height:320px;border-radius:18px;background:#120D14;box-shadow:0 10px 30px rgb(0 0 0 / .25);object-fit:cover}
 .recap-prev [hidden]{display:none}
+.rc-music{display:flex;flex-direction:column;gap:10px;transition:opacity .2s}
+.rc-music[hidden]{display:none}
+.rc-music .chips{margin-inline:-18px;padding-inline:18px}
+.rc-music .chip{display:inline-flex;align-items:center;gap:5px}
+.rc-mrow{display:flex;gap:8px}
+.rc-mrow .btn{flex:1;gap:6px}
+.rc-mrow .btn[hidden]{display:none}
 .push-card{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 6px;border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow)}
 .push-card b{display:block;font-weight:600;font-size:15px}
 .push-card .grow span{font-size:13px;color:var(--muted);line-height:1.35;display:block}
@@ -534,6 +541,9 @@ const I = {
   arrowR:'<path d="M5 12h14M13 6l6 6-6 6"/>',
   save:'<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5"/><path d="M5 17.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1.5"/>',
   play:'<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+  stop:'<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none"/>',
+  music:'<path d="M9 18.5V6l10-2v12.5"/><circle cx="6.5" cy="18.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>',
+  dice:'<rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>',
   bell:'<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
   friends:'<circle cx="9" cy="8.5" r="3.2"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M3.5 19.5c.7-3.2 2.9-5 5.5-5s4.8 1.8 5.5 5"/><path d="M14.8 14.7c.5-.1 1.1-.2 1.7-.2 2.2 0 4 1.5 4.5 4.5"/>',
   nav:'<path d="M12 2.8 19.5 21 12 16.8 4.5 21z"/>'
@@ -1025,8 +1035,9 @@ function vAlbumGuest() {
 }
 
 /* ============ recap video ============ */
-// Beat-synced: every cut lands on the music. 96 BPM, one bar = 2.5s.
-const RC = { BPM: 96, get BEAT() { return 60 / this.BPM; }, get BAR() { return this.BEAT * 4; } };
+// Beat-synced: every cut lands on the music. A photo lasts about 2–3 s, a clip up to ~5.5 s, always whole beats.
+const photoBeats = beat => { const d = 4 * beat; return d > 3.4 ? 3 : d < 1.9 ? 6 : 4; };
+const clipBeatsMax = beat => Math.max(photoBeats(beat), Math.floor(5.6 / beat / 2) * 2);
 const RECAP_LEN = { short: { items: 10, vids: 2, label: "קצר · לסטורי" }, full: { items: 24, vids: 5, label: "מלא" } };
 const RECAP_MAX = RECAP_LEN.full.items;
 function recapPool() { return (isGuest() ? guestFeed() : sharedList()).filter(p => p.mode === "full" && p.path); }
@@ -1063,17 +1074,17 @@ function recapPick(len = "full") {
   const order = { groom: 0, bride: 1, together: 2 };
   return chosen.sort((a, b) => order[recapChapter(a)] - order[recapChapter(b)] || ms(a.created_at) - ms(b.created_at));
 }
-const recapEstimate = pick => {
-  const bars = 2 + pick.reduce((s, p) => s + (p.kind === "video" ? 2 : 1), 0) + 2
-    + (pick.some(p => recapChapter(p) === "groom") && pick.some(p => recapChapter(p) === "bride") ? 2 : 0);
-  return Math.round(bars * RC.BAR);
+const recapEstimate = (pick, bpm = 84) => {
+  const beat = 60 / bpm, beats = 16 + pick.reduce((s, p) => s + (p.kind === "video" ? clipBeatsMax(beat) : photoBeats(beat)), 0)
+    + (pick.some(p => recapChapter(p) === "groom") && pick.some(p => recapChapter(p) === "bride") ? 10 : 2);
+  return Math.round(beats * beat);
 };
 async function loadForCanvas(url) {
   const r = await fetch(url, { mode: "cors" }); if (!r.ok) throw new Error("img");
   const b = await r.blob();
   try { return await createImageBitmap(b); } catch { const im = new Image(); im.src = URL.createObjectURL(b); await im.decode(); return im; }
 }
-function loadClip(p) {
+function loadClip(p, beat) {
   // a muted <video> parked at the best part of the clip, ready to play on cue
   return new Promise((res, rej) => {
     const v = document.createElement("video");
@@ -1083,9 +1094,10 @@ function loadClip(p) {
     v.addEventListener("loadedmetadata", () => {
       const d = v.duration;
       if (!isFinite(d) || d < 2) { clearTimeout(to); return rej(new Error("short")); }
-      const bars = d >= RC.BAR * 2 + .3 ? 2 : 1, len = bars * RC.BAR;
+      const beats = Math.min(clipBeatsMax(beat), Math.floor((d - .2) / beat)), len = beats * beat;
+      if (beats < 2) { clearTimeout(to); return rej(new Error("short")); }
       const start = Math.max(0, Math.min(d - len - .15, d * .3));   // skip the shaky first second, keep the action
-      v.addEventListener("seeked", () => { clearTimeout(to); res({ v, bars, start }); }, { once: true });
+      v.addEventListener("seeked", () => { clearTimeout(to); res({ v, beats, start }); }, { once: true });
       v.currentTime = start;
     }, { once: true });
     v.src = pub(p.path); v.load();
@@ -1098,106 +1110,402 @@ function blurredOf(im) {
   const k = Math.max(36 / iw, 64 / ih); c.drawImage(im, (36 - iw * k) / 2, (64 - ih * k) / 2, iw * k, ih * k);
   return s;
 }
-function recapMusic(ac, dest, t0, total, drumsAt, drumsEnd) {
-  // original music generated on the device: warm pad, arpeggio and soft drums, D major I–V–vi–IV
-  const bar = RC.BAR, beat = RC.BEAT;
-  const master = ac.createGain(); master.connect(dest);
-  master.gain.setValueAtTime(0, t0); master.gain.linearRampToValueAtTime(.9, t0 + 2.2);
-  master.gain.setValueAtTime(.9, t0 + total - 3); master.gain.linearRampToValueAtTime(0, t0 + total);
-  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; comp.connect(master);
-  const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2400; lp.Q.value = .4; lp.connect(comp);
-  const verb = ac.createDelay(1); verb.delayTime.value = beat * .75; const fb = ac.createGain(); fb.gain.value = .3;
-  verb.connect(fb); fb.connect(verb); verb.connect(lp);
-  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
-  const chords = [[50, 57, 62, 66, 69], [45, 57, 61, 64, 69], [47, 59, 62, 66, 71], [43, 55, 59, 62, 67]]; // D A Bm G
-  const tone = (f, at, dur, type, vol, atk, rel) => {
-    const o = ac.createOscillator(), g = ac.createGain();
-    o.type = type; o.frequency.value = f; o.detune.value = (Math.random() - .5) * 8;
-    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vol, at + atk); g.gain.setTargetAtTime(0, at + dur - rel, rel / 3);
-    o.connect(g); g.connect(lp); g.connect(verb); o.start(at); o.stop(at + dur + rel);
+// Original music, composed on the phone for every film: style, key, tempo, chords and melody
+// come from a seed, so no two films sound the same and a previewed tune is exactly what gets recorded.
+const rngOf = seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const newSeed = () => (Math.random() * 2 ** 31) | 0;
+const MUSIC_STYLES = {
+  build:    { label: "מרגש ← שמח", bpm: [80, 88],   progs: ["canon", "pop", "ballad"] },
+  romantic: { label: "רומנטי",     bpm: [72, 80],   progs: ["canon", "ballad"] },
+  happy:    { label: "שמח",        bpm: [104, 116], progs: ["pop"] },
+  acoustic: { label: "אקוסטי",     bpm: [88, 98],   progs: ["pop", "ballad"] },
+};
+const PROGS = { // scale degrees, 0 = I
+  pop: [[0, 4, 5, 3], [0, 5, 3, 4], [5, 3, 0, 4], [0, 3, 5, 4], [3, 0, 4, 5], [0, 4, 3, 4]],
+  canon: [[0, 4, 5, 2, 3, 0, 3, 4]],
+  ballad: [[0, 2, 3, 4], [0, 5, 1, 4], [0, 4, 5, 3], [3, 4, 2, 5], [0, 3, 1, 4]],
+};
+const MAJ = [0, 2, 4, 5, 7, 9, 11];
+const degSemi = d => MAJ[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
+const hzOf = m => 440 * Math.pow(2, (m - 69) / 12);
+function makeScore(style, seed) {
+  const S = MUSIC_STYLES[style] || MUSIC_STYLES.build, r = rngOf(seed);
+  const pick = a => a[Math.floor(r() * a.length)];
+  const opts = S.progs.flatMap(n => PROGS[n]);
+  const prog = pick(opts);
+  return {
+    style: MUSIC_STYLES[style] ? style : "build", seed,
+    bpm: Math.round(S.bpm[0] + r() * (S.bpm[1] - S.bpm[0])),
+    key: pick([0, 2, 3, 5, 7, 8, 10]),             // C D Eb F G Ab Bb
+    prog, chorus: r() < .55 ? prog : pick(opts),
+    lush: r() < .6,                                  // add9 colour on the chords
   };
-  let noise = null;
-  try { noise = ac.createBuffer(1, ac.sampleRate * .3, ac.sampleRate); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; } catch {}
-  const kick = at => {
-    const o = ac.createOscillator(), g = ac.createGain(); o.type = "sine";
-    o.frequency.setValueAtTime(120, at); o.frequency.exponentialRampToValueAtTime(42, at + .16);
-    g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(.55, at + .005); g.gain.exponentialRampToValueAtTime(.0001, at + .32);
-    o.connect(g); g.connect(comp); o.start(at); o.stop(at + .35);
+}
+const RHY_SLOW = [[[0, 2], [2, 1], [3, 1]], [[0, 3], [3, 1]], [[0, 1], [1, 1], [2, 2]], [[0, 1.5], [1.5, .5], [2, 2]], [[0, 2], [2, 2]]];
+const RHY_MID = [[[0, 1], [1, .5], [1.5, .5], [2, 1], [3, 1]], [[0, .5], [.5, .5], [1, 1], [2, 2]], [[0, 1.5], [1.5, 1], [2.5, .5], [3, 1]], [[.5, .5], [1, .5], [1.5, 1.5], [3, 1]], [[0, 1], [1, 1], [2, 1], [3, .5], [3.5, .5]]];
+const RHY_END = [[[0, 4]], [[0, 2], [2, 2]], [[0, 3]]];
+function genPhrase(r, chords, slow, keepFrom) {
+  // four bars, motif A · B · A · cadence; strong beats land on chord tones, weak beats step through the scale
+  const pick = a => a[Math.floor(r() * a.length)];
+  const pa = pick(slow ? RHY_SLOW : RHY_MID), pb = pick(slow ? RHY_SLOW : RHY_MID);
+  const pats = [pa, pb, pa, pick(RHY_END)];
+  let cur = 4 + Math.floor(r() * 3);
+  const out = [];
+  pats.forEach((pat, bi) => {
+    const c = chords[bi % chords.length], tones = [c, c + 2, c + 4];
+    pat.forEach(([s, l]) => {
+      let d;
+      if (keepFrom && bi < 3 && r() < .75) { const k = keepFrom.find(n => n.b === bi * 4 + s); if (k) { cur = k.d; out.push({ ...k }); return; } }
+      if (s % 2 === 0 || l >= 2) {
+        const cands = []; tones.forEach(t => [-7, 0, 7].forEach(o => cands.push(t + o)));
+        cands.sort((a, b) => Math.abs(a - cur) - Math.abs(b - cur));
+        d = r() < .72 ? cands[0] : cands[1];
+      } else d = cur + pick([-1, 1, -1, 1, 2, -2]);
+      d = Math.max(2, Math.min(11, d)); cur = d;
+      out.push({ b: bi * 4 + s, l, d });
+    });
+  });
+  return out;
+}
+function makeVerb(ac, secs) {
+  const len = Math.floor(ac.sampleRate * secs), b = ac.createBuffer(2, len, ac.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); let lp = 0; for (let i = 0; i < len; i++) { lp += ((Math.random() * 2 - 1) - lp) * .35; d[i] = lp * Math.pow(1 - i / len, 2.4); } }
+  const c = ac.createConvolver(); c.buffer = b; return c;
+}
+// sec: {intro, drop, outro, total} in seconds from t0. Returns {stop()}.
+function playScore(ac, out, t0, score, sec) {
+  const BEAT = 60 / score.bpm, BAR = BEAT * 4, r = rngOf(score.seed + 7), st = score.style;
+  const hum = () => (r() - .5) * .012, vel = v => v * (.88 + r() * .24);
+  const master = ac.createGain(); master.gain.value = 0; master.connect(out);
+  master.gain.setValueAtTime(0, t0); master.gain.linearRampToValueAtTime(1, t0 + .6);
+  master.gain.setValueAtTime(1, t0 + sec.total - 3.2); master.gain.linearRampToValueAtTime(0, t0 + sec.total);
+  const lim = ac.createDynamicsCompressor(); lim.threshold.value = -10; lim.knee.value = 6; lim.ratio.value = 8; lim.attack.value = .003; lim.release.value = .2; lim.connect(master);
+  const bus = ac.createGain(); bus.gain.value = .8; bus.connect(lim);
+  const verb = makeVerb(ac, st === "happy" ? 1.6 : 2.8), wet = ac.createGain(); wet.gain.value = st === "happy" ? .22 : .38; verb.connect(wet); wet.connect(lim);
+  const route = (node, send) => { node.connect(bus); if (send) { const s = ac.createGain(); s.gain.value = send; node.connect(s); s.connect(verb); } };
+  const nodes = [];
+  const keep = n => (nodes.push(n), n);
+  // ---- instruments ----
+  const pWave = ac.createPeriodicWave(new Float32Array(10), Float32Array.from([0, 1, .42, .26, .14, .09, .05, .035, .02, .012]));
+  const piano = (m, at, v, len) => {
+    const f = hzOf(m), g = ac.createGain(), lp = ac.createBiquadFilter(); lp.type = "lowpass";
+    lp.frequency.setValueAtTime(Math.min(9000, f * 5 + 2600 * v), at); lp.frequency.exponentialRampToValueAtTime(Math.max(f * 1.6, 600), at + 1.3);
+    const tc = Math.max(.35, Math.min(1.4, 1.6 - (m - 36) * .022));
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(v * .2, at + .005); g.gain.setTargetAtTime(0, at + .005, tc); g.gain.setTargetAtTime(0, at + len, .16);
+    for (const dt of [-4, 4]) { const o = keep(ac.createOscillator()); o.setPeriodicWave(pWave); o.frequency.value = f; o.detune.value = dt; o.connect(lp); o.start(at); o.stop(at + len + 1); }
+    lp.connect(g); route(g, .35);
   };
-  const hat = (at, vol, len) => {
-    if (!noise) return;
-    const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-    s.buffer = noise; f.type = "highpass"; f.frequency.value = len > .1 ? 1800 : 7000;
-    g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(.0001, at + len);
-    s.connect(f); f.connect(g); g.connect(comp); g.connect(verb); s.start(at); s.stop(at + len + .02);
+  const strings = (ms, at, len, v, bright = 1) => {
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1100 * bright; lp.Q.value = .5;
+    const g = ac.createGain(); g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(v, at + Math.min(.9, len * .4)); g.gain.setValueAtTime(v, at + len); g.gain.linearRampToValueAtTime(0, at + len + 1.1);
+    const lfo = keep(ac.createOscillator()), lg = ac.createGain(); lfo.frequency.value = 5 + r(); lg.gain.value = 7; lfo.connect(lg); lfo.start(at); lfo.stop(at + len + 1.3);
+    ms.forEach(m => [-9, 0, 9].forEach(dt => { const o = keep(ac.createOscillator()); o.type = "sawtooth"; o.frequency.value = hzOf(m); o.detune.value = dt; lg.connect(o.detune); o.connect(lp); o.start(at); o.stop(at + len + 1.3); }));
+    lp.connect(g); route(g, .5);
   };
-  const lastBar = Math.floor(total / bar) - 1;
-  for (let i = 0; i * bar < total; i++) {
-    const at = t0 + i * bar;
-    if (i >= lastBar) { // a held tonic to finish
-      tone(hz(38), at, bar * 1.6, "sine", .16, .3, 1.4);
-      [62, 66, 69, 74].forEach(n => tone(hz(n), at, bar * 1.6, "triangle", .04, .4, 1.6));
+  const pad = (ms, at, len, v) => {
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900;
+    const g = ac.createGain(); g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(v, at + .4); g.gain.setValueAtTime(v, at + len - .1); g.gain.linearRampToValueAtTime(0, at + len + .5);
+    ms.forEach(m => [-6, 6].forEach(dt => { const o = keep(ac.createOscillator()); o.type = "triangle"; o.frequency.value = hzOf(m); o.detune.value = dt; o.connect(lp); o.start(at); o.stop(at + len + .6); }));
+    lp.connect(g); route(g, .4);
+  };
+  const ksCache = {};
+  const ksBuf = m => {
+    if (ksCache[m]) return ksCache[m];
+    const sr = ac.sampleRate, N = Math.max(2, Math.round(sr / hzOf(m))), len = Math.floor(sr * 1.8), b = ac.createBuffer(1, len, sr), d = b.getChannelData(0);
+    for (let i = 0; i < N; i++) d[i] = Math.random() * 2 - 1;
+    for (let i = 1; i < N; i++) d[i] = (d[i] + d[i - 1]) * .5;
+    const decay = .9965 - Math.max(0, m - 64) * .0004;
+    for (let i = N; i < len; i++) d[i] = (d[i - N] + d[i - N + 1]) * .5 * decay;
+    return ksCache[m] = b;
+  };
+  const pluck = (m, at, v, len, tone = 3200) => {
+    const s = keep(ac.createBufferSource()), lp = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = ksBuf(m); lp.type = "lowpass"; lp.frequency.value = tone;
+    g.gain.setValueAtTime(v * .5, at); g.gain.setTargetAtTime(0, at + len, .09);
+    s.connect(lp); lp.connect(g); route(g, .3); s.start(at); s.stop(at + len + .5);
+  };
+  const strum = (ms, at, v, down = true, len = BEAT * 2) => (down ? ms : ms.slice().reverse()).forEach((m, i) => pluck(m, at + i * .014, v * (down ? 1 : .7), len, 2800));
+  const bell = (m, at, v) => {
+    const f = hzOf(m);
+    [[1, 1], [2.76, .35], [5.4, .14]].forEach(([k, a]) => {
+      const o = keep(ac.createOscillator()), g = ac.createGain(); o.frequency.value = f * k;
+      g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(v * a * .12, at + .004); g.gain.setTargetAtTime(0, at + .004, k > 1 ? .25 : .7);
+      o.connect(g); route(g, .55); o.start(at); o.stop(at + 2.5);
+    });
+  };
+  const whistle = (m, at, v, len) => {
+    const o = keep(ac.createOscillator()), g = ac.createGain(), lfo = keep(ac.createOscillator()), lg = ac.createGain();
+    o.frequency.value = hzOf(m); lfo.frequency.value = 5.5; lg.gain.value = 12; lfo.connect(lg); lg.connect(o.detune);
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(v * .07, at + .05); g.gain.setValueAtTime(v * .07, at + len * .8); g.gain.linearRampToValueAtTime(0, at + len);
+    o.connect(g); route(g, .45); o.start(at); lfo.start(at); o.stop(at + len + .1); lfo.stop(at + len + .1);
+  };
+  const bass = (m, at, len, v) => {
+    const g = ac.createGain(), lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = st === "happy" ? 900 : 520;
+    g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(v * .32, at + .008); g.gain.setTargetAtTime(v * .2, at + .02, .15); g.gain.setTargetAtTime(0, at + len - .04, .05);
+    [["triangle", 0], ["sine", -12]].forEach(([t, o]) => { const os = keep(ac.createOscillator()); os.type = t; os.frequency.value = hzOf(m + o); os.connect(lp); os.start(at); os.stop(at + len + .3); });
+    lp.connect(g); route(g, 0);
+  };
+  let noise = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); { const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  const nz = (at, len, type, freq, v, q = .8, send = .2) => {
+    const s = keep(ac.createBufferSource()), f = ac.createBiquadFilter(), g = ac.createGain();
+    s.buffer = noise; f.type = type; f.frequency.value = freq; f.Q.value = q;
+    g.gain.setValueAtTime(v, at); g.gain.exponentialRampToValueAtTime(.0001, at + len);
+    s.connect(f); f.connect(g); route(g, send); s.start(at, r() * .5); s.stop(at + len + .05); return f;
+  };
+  const kick = (at, v = 1) => {
+    const o = keep(ac.createOscillator()), g = ac.createGain(); o.frequency.setValueAtTime(130, at); o.frequency.exponentialRampToValueAtTime(44, at + .14);
+    g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(.6 * v, at + .004); g.gain.exponentialRampToValueAtTime(.0001, at + .34);
+    o.connect(g); route(g, 0); o.start(at); o.stop(at + .4);
+  };
+  const snare = (at, v = 1) => { nz(at, .18, "bandpass", 1900, .3 * v, .7, .35); const o = keep(ac.createOscillator()), g = ac.createGain(); o.type = "triangle"; o.frequency.value = 190; g.gain.setValueAtTime(.18 * v, at); g.gain.exponentialRampToValueAtTime(.0001, at + .09); o.connect(g); route(g, .2); o.start(at); o.stop(at + .12); };
+  const clap = (at, v = 1) => [0, .011, .023].forEach((d, i) => nz(at + d, i === 2 ? .16 : .03, "bandpass", 1400, .26 * v, 1.1, .4));
+  const hat = (at, v = 1, open = false) => nz(at, open ? .22 : .045, "highpass", 7500, .09 * v, .7, .1);
+  const shaker = (at, v = 1) => nz(at, .07, "bandpass", 5200, .05 * v, 1.4, .1);
+  const crash = (at, v = 1) => nz(at, 2.2, "highpass", 4200, .16 * v, .5, .5);
+  const boom = at => { const o = keep(ac.createOscillator()), g = ac.createGain(); o.frequency.setValueAtTime(70, at); o.frequency.exponentialRampToValueAtTime(34, at + 1.2); g.gain.setValueAtTime(.55, at); g.gain.exponentialRampToValueAtTime(.0001, at + 1.8); o.connect(g); route(g, .5); o.start(at); o.stop(at + 1.9); };
+  const riser = (at, len) => {
+    const s = keep(ac.createBufferSource()), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noise; s.loop = true;
+    f.type = "bandpass"; f.Q.value = 3; f.frequency.setValueAtTime(300, at); f.frequency.exponentialRampToValueAtTime(6000, at + len);
+    g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(.12, at + len); g.gain.linearRampToValueAtTime(0, at + len + .05);
+    s.connect(f); f.connect(g); route(g, .6); s.start(at); s.stop(at + len + .1);
+  };
+
+  // ---- the arrangement ----
+  const root = 48 + score.key;                                    // C3..Bb3
+  const chordAt = (prog, i) => prog[i % prog.length];
+  const voice = (d, base) => { const t = [d, d + 2, d + 4].map(x => base + degSemi(x)); if (score.lush) t.push(base + degSemi(d + 1) + 12); return t; };
+  const barsTotal = Math.ceil(sec.total / BAR);
+  const section = t => t < sec.intro - .01 ? "intro" : t < sec.drop - .01 ? "sides" : t < sec.outro - .01 ? "together" : "outro";
+  const slow = st === "romantic" || st === "build";
+  const mel = { sides: [], together: [] };
+  const events = [];
+  const at = (t, fn) => events.push([t, fn]);
+  const dropBar = Math.round(sec.drop / BAR), outroBar = Math.round(sec.outro / BAR), introBars = Math.round(sec.intro / BAR);
+  for (let b = 0; b < barsTotal; b++) {
+    const t = b * BAR, sc = section(t + .01), T = t0 + t;
+    const inChorus = sc === "together";
+    const ci = inChorus ? b - dropBar : sc === "sides" ? b - introBars : b;
+    const prog = inChorus ? score.chorus : score.prog;
+    const d = chordAt(prog, ci), lastBar = b >= barsTotal - 1 || (sc === "outro" && b === outroBar + 1);
+    const ch = voice(lastBar ? 0 : d, root + 12), bassN = root - 12 + degSemi(lastBar ? 0 : d) % 12;
+    if (lastBar) { // a held tonic to finish
+      at(t, () => { piano(bassN, T, .5, BAR * 2); ch.forEach((m, i) => piano(m, T + i * .05, .4, BAR * 2)); if (st !== "happy") strings(ch.slice(0, 3), T, BAR * 1.4, .02); else pad(ch, T, BAR * 1.5, .05); bell(ch[2] + 12, T + .2, .5); });
       break;
     }
-    const c = chords[i % 4];
-    tone(hz(c[0] - 12), at, bar, "sine", .15, .5, .9);
-    c.slice(1, 4).forEach(n => tone(hz(n), at, bar, "triangle", .032, .8, 1.1));
-    const arp = [c[1], c[2], c[3], c[4], c[3], c[2], c[4] + 12, c[3]];
-    arp.forEach((n, k) => tone(hz(n + 12), at + k * bar / 8, bar / 8 * 1.6, "sine", .04, .01, .35));
-    const rel = at - t0;
-    if (rel >= drumsAt - .01 && rel < drumsEnd - .01) {
-      for (let b = 0; b < 4; b++) {
-        const bt = at + b * beat;
-        if (b === 0 || b === 2 || (b === 3 && i % 4 === 3)) kick(b === 3 ? bt + beat / 2 : bt);
-        if (b === 1 || b === 3) hat(bt, .09, .18);          // soft clap
-        hat(bt + beat / 2, .035, .05);                       // off-beat shaker
+    // melody: phrase per 4 bars, AA' in each section
+    if (sc === "sides" || sc === "together") {
+      const k = sc, pi = Math.floor(ci / 4), chunk = [0, 1, 2, 3].map(j => chordAt(prog, pi * 4 + j));
+      if (ci % 4 === 0) {
+        const prev = mel[k][pi - 1];
+        mel[k][pi] = genPhrase(r, chunk, slow && sc === "sides", pi % 2 === 1 ? prev : null);
       }
+      const ph = mel[k][pi] || [];
+      const melBase = root + 12;
+      ph.filter(n => Math.floor(n.b / 4) === ci % 4).forEach(n => {
+        const nt = T + (n.b % 4) * BEAT + hum(), m = melBase + degSemi(n.d), len = n.l * BEAT;
+        at(t, () => {
+          if (st === "acoustic") { whistle(m + 12, nt, vel(.8), len * .95); if (inChorus) bell(m + 12, nt, vel(.5)); }
+          else if (st === "happy") { bell(m + 12, nt, vel(.9)); if (inChorus) pluck(m + 12, nt, vel(.45), len, 4200); }
+          else { piano(m + 12, nt, vel(inChorus ? .75 : .6), len * 1.05); if (inChorus) bell(m + 24, nt, vel(.35)); }
+        });
+      });
     }
+    // accompaniment
+    at(t, () => {
+      const loud = inChorus ? 1 : sc === "sides" ? .8 : .6;
+      if (st === "build" || st === "romantic") {
+        // broken-chord piano: low root, then the chord rising and falling in eighths
+        const arp = [bassN + 12, ch[0], ch[1], ch[2], ch[1] + 12, ch[2], ch[1], ch[0]];
+        piano(bassN, T + hum(), vel(.55 * loud), BAR);
+        arp.forEach((m, i) => { if (i) piano(m, T + i * BEAT / 2 + hum(), vel((i % 2 ? .28 : .34) * loud), BEAT * 1.5); });
+        if (sc === "sides" && b >= Math.round(sec.intro / BAR) + 2) strings(ch.slice(0, 3).map(m => m - 12), T, BAR, st === "romantic" ? .018 : .012, .8);
+        if (inChorus) {
+          strings(ch.slice(0, 3), T, BAR, st === "romantic" ? .03 : .022, 1.2);
+          strings([bassN], T, BAR, .03, .6);
+          if (st === "build") {
+            for (let k = 0; k < 4; k++) {
+              const bt = T + k * BEAT;
+              if (k === 0 || k === 2 || (k === 3 && b % 4 === 3)) kick(k === 3 ? bt + BEAT / 2 : bt, .9);
+              if (k === 1 || k === 3) snare(bt, .8);
+              hat(bt, .8); hat(bt + BEAT / 2, .5);
+            }
+            [0, 1.5, 2, 3].forEach((o, k) => bass(bassN + (k === 3 ? 7 : 0), T + o * BEAT, BEAT * (k === 0 ? 1.4 : .9), .9));
+            [ch[0], ch[1], ch[2], ch[1]].forEach((m, k) => pluck(m + 12, T + (k * 2 + 1) * BEAT / 2, vel(.35), BEAT * .9));
+          } else if (b % 2 === 0) bell(ch[2] + 24, T, .4);
+        }
+      } else if (st === "happy") {
+        pad(ch.slice(0, 3), T, BAR, sc === "intro" ? .035 : .028);
+        for (let k = 0; k < 4; k++) {
+          const bt = T + k * BEAT;
+          strum(ch.slice(0, 3).map(m => m + 12), bt + BEAT / 2, vel(.42 * loud), true, BEAT * .4);   // off-beat skank
+          if (k === 1 || k === 3) clap(bt, sc === "intro" ? .5 : .9);
+          if (sc !== "intro") {
+            if (inChorus || k % 2 === 0) kick(bt, inChorus ? 1 : .8);
+            shaker(bt + BEAT / 4, .8); shaker(bt + BEAT * .75, .6);
+            if (inChorus) hat(bt + BEAT / 2, .9, true);
+            const bn = bassN + (k === 2 && b % 2 ? 7 : 0);
+            bass(bn, bt, BEAT * .45, .9); if (inChorus) bass(bn + 12, bt + BEAT / 2, BEAT * .4, .7);
+          }
+        }
+      } else { // acoustic: finger-picked guitar, strums and soft percussion in the chorus
+        const g = ch.slice(0, 3);
+        if (!inChorus) {
+          const pat = [bassN + 12, g[1], g[2], g[0] + 12, bassN + 19, g[2], g[0] + 12, g[1]];
+          pat.forEach((m, i) => pluck(m, T + i * BEAT / 2 + hum(), vel(i === 0 || i === 4 ? .7 : .45), BEAT * 1.4));
+          if (sc === "sides") for (let k = 0; k < 8; k++) shaker(T + k * BEAT / 2, k % 2 ? .5 : .8);
+          if (sc === "sides" && b >= Math.round(sec.intro / BAR) + 2) kick(T, .45);
+        } else {
+          const shape = [bassN + 12, ...g, g[0] + 12, g[1] + 12];
+          [[0, 1], [1, 1], [1.5, 0], [2.5, 0], [3, 1], [3.5, 0]].forEach(([o, down]) => strum(shape, T + o * BEAT, vel(down ? .5 : .35), !!down, BEAT * 1.2));
+          kick(T, .8); kick(T + 2 * BEAT, .7); clap(T + BEAT, .55); clap(T + 3 * BEAT, .55);
+          for (let k = 0; k < 8; k++) shaker(T + k * BEAT / 2, k % 2 ? .6 : .9);
+          bass(bassN, T, BEAT * 1.8, .8); bass(bassN + 7, T + 2 * BEAT, BEAT * 1.8, .7);
+        }
+      }
+    });
+    // the moment the two sides meet: a rise into it, then an impact
+    if (b === dropBar - 1 && sec.drop < sec.outro) at(t, () => { riser(T, BAR); if (st === "build" || st === "happy") [2, 2.5, 3, 3.25, 3.5, 3.75].forEach((o, k) => snare(T + o * BEAT, .3 + k * .1)); if (st === "romantic" || st === "build") strings(ch.slice(0, 3), T, BAR, .02, 1.4); });
+    if (b === dropBar && sec.drop < sec.outro) at(t, () => { crash(T); boom(T); if (st !== "acoustic") bell(root + 36 + degSemi(4), T, .6); });
   }
-  return master;
+  // schedule in small windows so the phone never builds thousands of nodes at once
+  events.sort((a, b) => a[0] - b[0]);
+  let ei = 0, dead = false;
+  const offline = typeof OfflineAudioContext !== "undefined" && ac instanceof OfflineAudioContext;
+  const pump = () => {
+    if (dead) return;
+    const horizon = offline ? Infinity : ac.currentTime - t0 + 1.4;
+    while (ei < events.length && events[ei][0] <= horizon) { try { events[ei][1](); } catch (e) { console.warn(e); } ei++; }
+    if (ei >= events.length) clearInterval(iv);
+  };
+  const iv = setInterval(pump, 120); pump();
+  return { stop() { dead = true; clearInterval(iv); try { master.gain.cancelScheduledValues(ac.currentTime); master.gain.setTargetAtTime(0, ac.currentTime, .08); } catch {} setTimeout(() => nodes.forEach(n => { try { n.stop(); } catch {} }), 400); } };
 }
+// your own song: find the tempo and the first beat, so the cuts still fall on the music
+function analyzeSong(buf) {
+  const sr = buf.sampleRate, ch = buf.getChannelData(0), hop = Math.round(sr / 100);
+  const n = Math.floor(Math.min(ch.length, sr * 120) / hop), env = new Float32Array(n), lvl = new Float32Array(n);
+  let prev = 0;
+  for (let i = 0; i < n; i++) { let e = 0; for (let j = 0; j < hop; j += 4) { const v = ch[i * hop + j]; e += v * v; } e = Math.sqrt(e / (hop / 4)); lvl[i] = e; env[i] = Math.max(0, e - prev); prev = e; }
+  let best = 0, bestBpm = 100;
+  for (let bpm = 64; bpm <= 160; bpm += .5) {
+    const lag = 6000 / bpm; let s = 0;
+    for (let i = 0; i + 2 * lag < n; i += 2) s += env[i] * (env[Math.round(i + lag)] + .5 * env[Math.round(i + 2 * lag)]);
+    s *= Math.exp(-Math.pow(Math.log2(bpm / 105), 2) * 1.2);         // gently prefer ordinary song tempos
+    if (s > best) { best = s; bestBpm = bpm; }
+  }
+  const per = 6000 / bestBpm; let ph = 0, phBest = -1;
+  for (let o = 0; o < per; o++) { let s = 0; for (let k = o; k < n; k += per) s += env[Math.round(k)] || 0; if (s > phBest) { phBest = s; ph = o; } }
+  const mean = lvl.reduce((a, b) => a + b, 0) / n;
+  let start = ph;
+  // skip a quiet intro: start on the first beat that is already playing at full strength
+  while (start + per < n) { let e = 0, c = 0; for (let k = 0; k < per && start + k < n; k++, c++) e += lvl[Math.round(start + k)]; if (e / c > mean * .55) break; start += per; }
+  return { bpm: Math.round(bestBpm * 2) / 2, start: start / 100 };
+}
+let RECAP_SONG = null;
 function recapSheet() {
   const pool = recapPool();
   if (pool.length < 3) return toast("צריך לפחות 3 תמונות לסרטון", "album");
   let len = pool.length > 14 ? "full" : "short";
+  let style = store.get("recap.style", "build"); if (!MUSIC_STYLES[style] && !(style === "song" && RECAP_SONG)) style = "build";
+  let seed = newSeed(), pv = null, busy = false;
+  const bpmNow = () => style === "song" ? RECAP_SONG.bpm : makeScore(style, seed).bpm;
   const info = () => {
     const pick = recapPick(len), v = pick.filter(p => p.kind === "video").length;
-    return `${pick.length} רגעים${v ? `, מתוכם ${v} סרטונים` : ""}, בערך ${recapEstimate(pick)} שניות עם מוזיקה מקורית. ההכנה לוקחת בערך כמו אורך הסרטון, השאירו את המסך פתוח.`;
+    return `${pick.length} רגעים${v ? `, מתוכם ${v} סרטונים` : ""}, בערך ${recapEstimate(pick, bpmNow())} שניות. ההכנה לוקחת בערך כמו אורך הסרטון, השאירו את המסך פתוח.`;
   };
+  const mnote = () => style === "song"
+    ? `${esc(RECAP_SONG.name)} · המעברים יתאימו לקצב של השיר`
+    : "מנגינה מקורית שנכתבת עכשיו רק בשבילכם, כל פעם אחרת";
   openSheet("סרטון הסיכום", `<div class="stack">
     <div class="recap-prev"><canvas id="rc-cv" width="270" height="480"></canvas><video id="rc-vid" playsinline controls hidden></video></div>
     ${pool.length > 10 ? `<div class="seg" role="group" id="rc-len">${Object.entries(RECAP_LEN).map(([k, o]) => `<button data-len="${k}" aria-pressed="${k === len}">${o.label}</button>`).join("")}</div>` : ""}
+    <div class="rc-music">
+      <span class="eyebrow">מוזיקה</span>
+      <div class="chips" id="rc-style">${Object.entries(MUSIC_STYLES).map(([k, o]) => `<button class="chip" data-style="${k}" aria-pressed="${k === style}">${o.label}</button>`).join("")}<button class="chip" data-style="song" aria-pressed="${style === "song"}">${ic("music", 15)} השיר שלכם</button></div>
+      <div class="rc-mrow"><button class="btn ghost sm" id="rc-listen">${ic("play", 16)}שמיעה</button><button class="btn ghost sm" id="rc-dice" ${style === "song" ? "hidden" : ""}>${ic("dice", 17)}מנגינה אחרת</button></div>
+      <p class="small muted" id="rc-mnote">${mnote()}</p>
+      <input type="file" id="rc-file" accept="audio/*,.mp3,.m4a,.aac,.wav" hidden>
+    </div>
     <p class="small muted" id="rc-info">${info()}</p>
     <div class="progress" id="rc-prog" hidden><i style="width:0"></i></div>
     <button class="btn block gold" id="rc-go">${ic("sparkle", 20)}יוצרים את הסרטון</button>
   </div>`, sh => {
-    const go = $("#rc-go", sh), seg = $("#rc-len", sh);
+    const go = $("#rc-go", sh), seg = $("#rc-len", sh), chips = $("#rc-style", sh), lis = $("#rc-listen", sh), dice = $("#rc-dice", sh), file = $("#rc-file", sh);
+    const refresh = () => {
+      chips.querySelectorAll("[data-style]").forEach(b => b.setAttribute("aria-pressed", b.dataset.style === style));
+      dice.hidden = style === "song"; $("#rc-mnote", sh).innerHTML = mnote(); $("#rc-info", sh).textContent = info();
+    };
+    const stopPv = () => {
+      if (!pv) return; const p = pv; pv = null; clearTimeout(p.timer);
+      try { p.h.stop(); } catch {} setTimeout(() => { try { p.ac.close(); } catch {} }, 500);
+      lis.innerHTML = `${ic("play", 16)}שמיעה`;
+    };
+    // stop the music when the sheet goes away, whatever closed it
+    const mo = new MutationObserver(() => { if (!sh.isConnected) { stopPv(); mo.disconnect(); } }); mo.observe(document.body, { childList: true, subtree: true });
+    lis.onclick = async () => {
+      if (pv) return stopPv();
+      let ac; try { ac = new (window.AudioContext || window.webkitAudioContext)(); await ac.resume(); } catch { return toast("הטלפון לא מצליח לנגן כרגע", "x"); }
+      let h, dur;
+      if (style === "song") {
+        const s = ac.createBufferSource(), g = ac.createGain(), t = ac.currentTime + .05; dur = 16;
+        s.buffer = RECAP_SONG.buf; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + .4); g.gain.setValueAtTime(1, t + dur - 2); g.gain.linearRampToValueAtTime(0, t + dur);
+        s.connect(g); g.connect(ac.destination); s.start(t, RECAP_SONG.start); h = { stop() { try { s.stop(); } catch {} } };
+      } else {
+        const sc = makeScore(style, seed), B = 240 / sc.bpm, sec = { intro: B, drop: B * 3, outro: B * 6, total: B * 8 + .6 }; dur = sec.total;
+        h = playScore(ac, ac.destination, ac.currentTime + .1, sc, sec);
+      }
+      pv = { ac, h, timer: setTimeout(stopPv, dur * 1000 + 400) };
+      lis.innerHTML = `${ic("stop", 16)}עצירה`;
+    };
+    dice.onclick = () => { const wasOn = !!pv; stopPv(); seed = newSeed(); refresh(); if (wasOn) lis.onclick(); };
+    chips.onclick = e => {
+      const b = e.target.closest("[data-style]"); if (!b || busy) return;
+      if (b.dataset.style === "song" && (!RECAP_SONG || style === "song")) return file.click();
+      stopPv(); style = b.dataset.style; store.set("recap.style", style); refresh();
+    };
+    file.onchange = async () => {
+      const f = file.files && file.files[0]; file.value = ""; if (!f) return;
+      if (f.size > 60 * 1024 * 1024) return toast("הקובץ גדול מדי. נסו MP3 או M4A", "x");
+      stopPv(); $("#rc-mnote", sh).textContent = "קוראים את השיר…";
+      try {
+        const ac = new (window.AudioContext || window.webkitAudioContext)();
+        const buf = await new Promise((res, rej) => { const p = f.arrayBuffer().then(ab => ac.decodeAudioData(ab, res, rej)); if (p && p.catch) p.catch(rej); });
+        try { ac.close(); } catch {}
+        if (buf.duration < 20) throw new Error("short");
+        RECAP_SONG = { buf, name: f.name.replace(/\.[^.]+$/, ""), ...analyzeSong(buf) };
+        style = "song"; store.set("recap.style", "song"); refresh();
+      } catch (e) { console.warn(e); refresh(); toast("לא הצלחנו לקרוא את הקובץ. נסו קובץ MP3 או M4A", "x"); }
+    };
     if (seg) seg.onclick = e => {
-      const b = e.target.closest("[data-len]"); if (!b || go.disabled || go.dataset.file) return;
+      const b = e.target.closest("[data-len]"); if (!b || busy || go.dataset.file) return;
       len = b.dataset.len; seg.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#rc-info", sh).textContent = info();
     };
     go.onclick = async () => {
       if (go.dataset.file) { const r = await shareOrDownload(RECAP_FILE); if (r === "downloaded") toast("הסרטון ירד", "check"); return; }
+      stopPv(); busy = true;
       go.disabled = true; go.innerHTML = `<span class="spin"></span>מכינים…`;
-      if (seg) seg.style.opacity = ".5";
+      [seg, $(".rc-music", sh)].forEach(el => el && (el.style.opacity = ".5", el.style.pointerEvents = "none"));
       $("#rc-prog", sh).hidden = false;
       try {
-        RECAP_FILE = await makeRecap(recapPick(len), $("#rc-cv", sh), p => { const b = $("#rc-prog i", sh); if (b) b.style.width = Math.round(p * 100) + "%"; });
+        const music = style === "song" ? { song: RECAP_SONG } : { score: makeScore(style, seed) };
+        RECAP_FILE = await makeRecap(recapPick(len), $("#rc-cv", sh), p => { const b = $("#rc-prog i", sh); if (b) b.style.width = Math.round(p * 100) + "%"; }, music);
         go.dataset.file = "1"; go.disabled = false; go.innerHTML = `${ic("save", 20)}שמירה ושיתוף`;
         $("#rc-info", sh).textContent = "מוכן! צפו, ואז שמרו לגלריה או שתפו ישר לוואטסאפ.";
-        $("#rc-prog", sh).hidden = true;
+        $("#rc-prog", sh).hidden = true; $(".rc-music", sh).hidden = true; if (seg) seg.hidden = true;
         const vid = $("#rc-vid", sh); vid.src = URL.createObjectURL(RECAP_FILE); vid.hidden = false; $("#rc-cv", sh).hidden = true;
       } catch (e) {
-        console.warn(e); go.disabled = false; go.innerHTML = `${ic("sparkle", 20)}נסו שוב`; if (seg) seg.style.opacity = "";
+        console.warn(e); busy = false; go.disabled = false; go.innerHTML = `${ic("sparkle", 20)}נסו שוב`;
+        [seg, $(".rc-music", sh)].forEach(el => el && (el.style.opacity = "", el.style.pointerEvents = ""));
         toast(e && e.code === "too_big" ? "הטלפון הזה לא תומך ביצירת וידאו. נסו מטלפון אחר" : "לא הצלחנו ליצור את הסרטון. נסו שוב", "x");
       }
     };
   });
 }
 let RECAP_FILE = null;
-async function makeRecap(pick, preview, onProg) {
+async function makeRecap(pick, preview, onProg, music = { score: makeScore("build", newSeed()) }) {
   if (!canCompress()) throw new ApiError("too_big");
-  const Wd = 1080, Ht = 1920, BAR = RC.BAR, FADE = .45;
+  const Wd = 1080, Ht = 1920, FADE = .45;
+  const BEAT = 60 / (music.song ? music.song.bpm : music.score.bpm), PB = photoBeats(BEAT);
   let ac = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); await ac.resume(); } catch { ac = null; }
 
   // 1) load everything first, so nothing stalls once recording starts
@@ -1206,10 +1514,10 @@ async function makeRecap(pick, preview, onProg) {
     const p = pick[i];
     try {
       if (p.kind === "video") {
-        const c = await loadClip(p);
+        const c = await loadClip(p, BEAT);
         let poster = null; try { if (p.thumb_path) poster = await loadForCanvas(pub(p.thumb_path)); } catch {}
         media.push({ p, kind: "vid", ...c, im: poster });
-      } else media.push({ p, kind: "img", im: await loadForCanvas(pub(p.path)), bars: 1 });
+      } else media.push({ p, kind: "img", im: await loadForCanvas(pub(p.path)), beats: PB });
     } catch (e) { console.warn("recap skip", e); }
     onProg((i + 1) / pick.length * .15);
   }
@@ -1217,10 +1525,12 @@ async function makeRecap(pick, preview, onProg) {
   media.forEach(m => { const src = m.im || m.v; const w = m.kind === "vid" ? m.v.videoWidth : m.im.width, h = m.kind === "vid" ? m.v.videoHeight : m.im.height; m.wide = w / h > .8; if (m.wide) try { m.bg = blurredOf(src); } catch {} });
 
   // 2) the timeline: intro · groom's side · bride's side · "together" split · together · outro
-  const segs = []; let t = 0;
-  const add = s => { s.t = t; s.dur = s.bars * BAR; segs.push(s); t += s.dur; };
-  add({ kind: "intro", bars: 2 });
-  const drumsAt = t;
+  // everything is counted in beats; the big moments start on a bar line
+  const segs = []; let tb = 0;
+  const add = s => { s.tb = tb; segs.push(s); tb += s.beats; };
+  const toBar = () => { const r = tb % 4; if (r && segs.length) { segs[segs.length - 1].beats += 4 - r; tb += 4 - r; } };
+  add({ kind: "intro", beats: 8 });
+  let dropB = null;
   const chapLabel = { groom: `הצד של ${coupleName("groom")}`, bride: `הצד של ${coupleName("bride")}`, together: "ביחד" };
   const byCh = k => media.filter(m => recapChapter(m.p) === k);
   const best = list => list.filter(m => m.kind === "img").sort((a, b) => (b.p.hearts || 0) - (a.p.hearts || 0))[0];
@@ -1230,13 +1540,18 @@ async function makeRecap(pick, preview, onProg) {
     const list = byCh(k);
     if (k === "together") {
       const g = best(byCh("groom")), b = best(byCh("bride"));
-      if (g && b) add({ kind: "split", bars: 2, g, b });
+      if (g && b) { toBar(); dropB = tb; add({ kind: "split", beats: 8, g, b }); }
+      else if (multi && list.length) { toBar(); dropB = tb; }
     }
-    list.forEach((m, i) => add({ kind: m.kind, bars: m.bars, m, chapter: multi && i === 0 && !(k === "together" && segs[segs.length - 1]?.kind === "split") ? chapLabel[k] : null, n: chapIdx++ }));
+    list.forEach((m, i) => add({ kind: m.kind, beats: m.beats, m, chapter: multi && i === 0 && !(k === "together" && segs[segs.length - 1]?.kind === "split") ? chapLabel[k] : null, n: chapIdx++ }));
   }
-  const drumsEnd = t;
-  add({ kind: "outro", bars: 2 });
-  const total = t + .6;
+  toBar();
+  const outB = tb;
+  if (dropB === null || dropB >= outB) dropB = Math.min(outB, 8 + 4 * Math.round((outB - 8) * .35 / 4));
+  add({ kind: "outro", beats: 8 });
+  segs.forEach(s => { s.t = s.tb * BEAT; s.dur = s.beats * BEAT; });
+  const total = tb * BEAT + .6;
+  const sec = { intro: 8 * BEAT, drop: dropB * BEAT, outro: outB * BEAT, total };
 
   // 3) drawing
   const cv = document.createElement("canvas"); cv.width = Wd; cv.height = Ht;
@@ -1359,9 +1674,16 @@ async function makeRecap(pick, preview, onProg) {
   const tracks = [...stream.getVideoTracks()];
   const LEAD = .25;
   let audioT0 = 0;
+  let band = null;
   if (ac) {
     const dest = ac.createMediaStreamDestination(); audioT0 = ac.currentTime + LEAD;
-    recapMusic(ac, dest, audioT0, total, drumsAt, drumsEnd); tracks.push(...dest.stream.getAudioTracks());
+    if (music.song) {
+      const s = ac.createBufferSource(), g = ac.createGain(); s.buffer = music.song.buf;
+      g.gain.setValueAtTime(0, audioT0); g.gain.linearRampToValueAtTime(1, audioT0 + .5);
+      g.gain.setValueAtTime(1, audioT0 + total - 3.2); g.gain.linearRampToValueAtTime(0, audioT0 + total);
+      s.connect(g); g.connect(dest); s.start(audioT0, Math.min(music.song.start, Math.max(0, music.song.buf.duration - total))); band = { stop() { try { s.stop(); } catch {} } };
+    } else band = playScore(ac, dest, audioT0, music.score, sec);
+    tracks.push(...dest.stream.getAudioTracks());
   }
   const mime = REC_MIMES.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } });
   if (!mime) throw new ApiError("too_big");
@@ -1380,6 +1702,7 @@ async function makeRecap(pick, preview, onProg) {
     }, 1000 / 30);
   });
   rec.stop(); await stopped;
+  try { band && band.stop(); } catch {}
   tracks.forEach(t => t.stop()); try { ac && ac.close(); } catch {} try { wake && wake.release(); } catch {}
   media.forEach(m => { if (m.v) { try { m.v.pause(); m.v.removeAttribute("src"); m.v.load(); } catch {} } });
   const type = mime.split(";")[0];
