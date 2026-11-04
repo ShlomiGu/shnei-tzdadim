@@ -1,0 +1,28 @@
+{
+  "appId": "com.shneitzdadim.app",
+  "appName": "שני צדדים",
+  "webDir": "www",
+  "backgroundColor": "#F6F2F4",
+  "ios": {
+    "contentInset": "never",
+    "scheme": "Shnei Tzdadim",
+    "backgroundColor": "#F6F2F4"
+  },
+  "android": {
+    "backgroundColor": "#F6F2F4",
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 900,
+      "launchAutoHide": true,
+      "backgroundColor": "#F6F2F4",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP"
+    },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DEFAULT"
+    }
+  }
+}

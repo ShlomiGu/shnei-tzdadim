@@ -1,0 +1,10 @@
+node_modules/
+ios/App/App/public/
+android/app/src/main/assets/public/
+android/.gradle/
+android/build/
+android/app/build/
+ios/DerivedData/
+*.keystore
+*.jks
+www/
