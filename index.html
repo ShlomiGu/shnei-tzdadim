@@ -476,6 +476,10 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .song-part{display:flex;flex-direction:column;gap:4px}
 .song-part canvas{width:100%;height:56px;touch-action:none;cursor:grab;display:block}
 .song-times{font-size:12.5px;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+.note-flag{margin-inline-start:8px;color:var(--muted);vertical-align:middle;opacity:.7;padding:2px}
+.rep-list{display:flex;flex-direction:column;gap:6px}
+.rep-opt{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:12px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
+.rep-opt input{accent-color:var(--bride);width:18px;height:18px}
 .recap-pill{border:0;cursor:pointer;font:inherit;font-size:13.5px;font-weight:600}
 .recap-pill.low{top:calc(env(safe-area-inset-top,0px) + 112px)}
 .upq-ring{width:22px;height:22px;border-radius:50%;flex:none;background:conic-gradient(var(--gold) calc(var(--p) * 1%),rgb(127 127 127 / .35) 0);-webkit-mask:radial-gradient(circle,transparent 6px,#000 7px);mask:radial-gradient(circle,transparent 6px,#000 7px)}
@@ -583,6 +587,7 @@ const I = {
   stop:'<rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor" stroke="none"/>',
   music:'<path d="M9 18.5V6l10-2v12.5"/><circle cx="6.5" cy="18.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/>',
   dice:'<rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r="1.2" fill="currentColor"/><circle cx="15" cy="15" r="1.2" fill="currentColor"/><circle cx="15" cy="9" r="1.2" fill="currentColor"/><circle cx="9" cy="15" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>',
+  flag:'<path d="M5.5 21V4.5"/><path d="M5.5 4.5h11.5l-2.2 4.2 2.2 4.3H5.5"/>',
   bell:'<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
   friends:'<circle cx="9" cy="8.5" r="3.2"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M3.5 19.5c.7-3.2 2.9-5 5.5-5s4.8 1.8 5.5 5"/><path d="M14.8 14.7c.5-.1 1.1-.2 1.7-.2 2.2 0 4 1.5 4.5 4.5"/>',
   nav:'<path d="M12 2.8 19.5 21 12 16.8 4.5 21z"/>'
@@ -1076,6 +1081,55 @@ function vAlbumGuest() {
     ${rv ? `<div class="seg" role="group" style="margin-bottom:14px"><button data-act="album-tab" data-tab="all" aria-pressed="${S.albumTab === "all"}">כל החתונה · ${all.length}</button><button data-act="album-tab" data-tab="guest" aria-pressed="${S.albumTab === "guest"}">האורחים · ${mine.length}</button></div>` : ""}
     ${list.length ? `<div class="grid">${(S.albumTab === "guest" ? list : list).map(p => tileHtml(p, { ribbon: rv && S.albumTab === "all" })).join("")}</div>`
       : `<div class="empty"><h3>עוד אין כאן תמונות</h3><p>צלמו את הרגעים שלכם מהחתונה. הזוג יקבל את כולן.</p><button class="btn" data-act="pick" style="margin-top:16px">${ic("camera", 20)}צילום או העלאה</button></div>`}`;
+}
+
+/* ============ reporting, blocking, deleting your account ============ */
+function reportSheet(kind, id, mid, otherSideAuthor) {
+  const mod = canCover(), who = otherSideAuthor ? (kind === "teaser" ? "מי ששלח את הטיזר" : "מי שהעלה") : nameOf(mid);
+  const reasons = ["תוכן פוגעני או לא הולם", "תמונה שלי שאני לא רוצה שתופיע", "ספאם או לא קשור לחתונה", "משהו אחר"];
+  openSheet(kind === "photo" ? (mod ? "הסרה ודיווח" : "דיווח על תמונה") : "דיווח על טיזר", `<div class="stack">
+    <p class="small muted">${mod ? "אתם מארגני החתונה, ולכן זה יוסר מיד אצל כולם." : "זה ייעלם אצלכם מיד. הזוג ומי שפתח את החתונה יכולים להסיר את זה אצל כולם, ואם עוד מישהו מדווח, זה מוסר אוטומטית. כל דיווח מגיע גם אלינו."}</p>
+    <div class="rep-list">${reasons.map((r, i) => `<label class="rep-opt"><input type="radio" name="rep" value="${esc(r)}" ${i === 0 ? "checked" : ""}><span>${r}</span></label>`).join("")}</div>
+    <label class="rc-toggle"><input type="checkbox" id="rp-block"><span><b>לחסום את ${esc(who)}</b><span class="small muted">לא תראו יותר תמונות וטיזרים ממנו/ה. אפשר לבטל בהגדרות.</span></span></label>
+    <button class="btn danger block" id="rp-go">${ic("flag", 18, 2)}${mod ? "הסרה ודיווח" : "שליחת דיווח"}</button>
+  </div>`, sh => {
+    $("#rp-go", sh).onclick = async () => {
+      const reason = (sh.querySelector('input[name="rep"]:checked') || {}).value || "", block = $("#rp-block", sh).checked;
+      const r = await mutate(() => rpc("report_content", { p_token: S.token, p_kind: kind, p_id: id, p_reason: reason, p_block: block }), block ? "דווח ונחסם" : "תודה, הדיווח התקבל");
+      if (r) { closeSheet(); if (S.lb) closeLightbox(); }
+    };
+  });
+}
+function accountSection() {
+  const bl = S.st.blocked || [];
+  return `<section class="card stack">
+    <h3 class="card-t">פרטיות וחשבון</h3>
+    ${bl.length ? `<div class="stack" style="gap:8px"><span class="eyebrow">חסומים</span>${bl.map(b => `<div class="row" style="align-items:center"><span class="grow">${esc(b.name)}</span><button class="chip" data-unblock="${esc(b.id)}">ביטול חסימה</button></div>`).join("")}</div>` : `<p class="small muted">כדי לדווח על תמונה או טיזר, או לחסום מישהו, לחצו על ${ic("flag", 13, 2)} ליד התוכן.</p>`}
+    <a class="link small" href="privacy.html" target="_blank" rel="noopener">מדיניות פרטיות, תנאי שימוש ויצירת קשר</a>
+    <button class="btn line block" id="st-delacc">מחיקת החשבון שלי</button>
+  </section>`;
+}
+function wireAccount(sh) {
+  sh.querySelectorAll("[data-unblock]").forEach(b => b.onclick = async () => { if (await mutate(() => rpc("block_member", { p_token: S.token, p_member: b.dataset.unblock, p_on: false }), "החסימה בוטלה")) { const row = b.closest(".row"); if (row) row.remove(); } });
+  const d = $("#st-delacc", sh); if (d) d.onclick = deleteAccountSheet;
+}
+function deleteAccountSheet() {
+  const mine = S.st.photos.filter(p => p.member_id === ME().id).length;
+  openSheet("מחיקת החשבון", `<div class="stack">
+    <p>החשבון שלכם בחתונה של ${esc(coupleName("groom"))} ו${esc(coupleName("bride"))} יימחק: השם, ההתראות, הלייקים, התגובות והטיזרים. המכשיר הזה יוצא, ואי אפשר לבטל את המחיקה.</p>
+    ${mine ? `<label class="rc-toggle"><input type="checkbox" id="da-content" checked><span><b>למחוק גם את ${mine === 1 ? "התמונה שהעליתי" : `${mine} התמונות והסרטונים שהעליתי`}</b><span class="small muted">הם ייעלמו מהאלבום מיד, והקבצים יימחקו מהשרת תוך יום. בלי הסימון הם נשארים באלבום של הזוג.</span></span></label>` : ""}
+    <button class="btn danger block" id="da-go">מחיקת החשבון לצמיתות</button>
+    <button class="btn line block" data-close>ביטול</button>
+  </div>`, sh => {
+    const go = $("#da-go", sh);
+    go.onclick = async () => {
+      if (!go.dataset.sure) { go.dataset.sure = 1; go.textContent = "בטוחים? לחצו שוב כדי למחוק"; return; }
+      go.disabled = true;
+      const c = $("#da-content", sh);
+      const r = await act(() => rpc("delete_account", { p_token: S.token, p_content: c ? c.checked : false }));
+      if (r) { toast("החשבון נמחק", "check"); logout(); } else { go.disabled = false; go.textContent = "מחיקת החשבון לצמיתות"; delete go.dataset.sure; }
+    };
+  });
 }
 
 /* ============ couple photo ============ */
@@ -2698,7 +2752,7 @@ function noteHtml(t) {
     <div class="from" style="color:${sideVar(t.team)}">${mine ? esc(nameOf(t.member_id)) : teamLabel(t.team)}</div>
     ${t.body ? `<div class="txt">${esc(t.body)}</div>` : ""}
     ${photos.length ? `<div class="ph ${photos.length === 1 ? "one" : ""}">${photos.map(p => tileHtml(p)).join("")}</div>` : ""}
-    <div class="when">${ago(ms(t.created_at))}${!mine && photos.some(p => p.mode === "blur") ? ` · נחשף ב-${hhmm(revealMs())}` : ""}</div>
+    <div class="when">${ago(ms(t.created_at))}${!mine && photos.some(p => p.mode === "blur") ? ` · נחשף ב-${hhmm(revealMs())}` : ""}${t.member_id !== ME().id ? `<button class="note-flag" data-act="report-teaser" data-id="${esc(t.id)}" aria-label="דיווח על הטיזר">${ic("flag", 13, 2)}</button>` : ""}</div>
     ${!mine ? `<div class="reacts">${emojis.map(e => `<button class="react" data-act="react" data-id="${esc(t.id)}" data-e="${e}" aria-pressed="${t.my_react === e}">${e}${reacts[e] ? " " + reacts[e] : ""}</button>`).join("")}</div>`
       : (Object.keys(reacts).length ? `<div class="reacts">${Object.entries(reacts).map(([e, n]) => `<span class="react">${esc(e)} ${n}</span>`).join("")}</div>` : "")}
   </div>`;
@@ -2760,6 +2814,7 @@ function renderJoin(prefill = "") {
         <div class="field"><label for="jn-name">איך קוראים לכם</label><input class="input" id="jn-name" maxlength="30" autocomplete="given-name" placeholder="השם שיופיע לחברים"></div>
         <div class="seg" role="group" aria-label="תפקיד"><button type="button" data-role="escort" aria-pressed="true">מלווה</button><button type="button" data-role="couple" aria-pressed="false" id="jn-couple">אני</button></div>
         <button class="btn block" type="submit" id="jn-go">הצטרפות</button>
+        <p class="tiny muted" style="text-align:center">בהצטרפות אתם מסכימים ל<a class="link" href="privacy.html#terms" target="_blank" rel="noopener">תנאי השימוש</a>: אין מקום לתוכן פוגעני או להטרדה, ותוכן כזה יוסר.</p>
       </div>
     </form></div>`);
   const input = $("#jn-code");
@@ -2821,6 +2876,7 @@ function renderCreate() {
       <div class="seg" role="group"><button type="button" data-role="escort" aria-pressed="true">מלווה</button><button type="button" data-role="couple" aria-pressed="false" id="cr-couple">אני החתן / הכלה</button></div>
       <div class="field"><label for="cr-name">השם שלכם</label><input class="input" id="cr-name" maxlength="30" required></div>
       <button class="btn block gold" type="submit" id="cr-go" disabled>${ic("sparkle", 20)}יוצאים לדרך</button>
+      <p class="tiny muted" style="text-align:center">בפתיחת החתונה אתם מסכימים ל<a class="link" href="privacy.html#terms" target="_blank" rel="noopener">תנאי השימוש</a>: אין מקום לתוכן פוגעני או להטרדה, ותוכן כזה יוסר.</p>
     </form></div>`);
   const upd = () => {
     const g = $("#cr-groom").value.trim() || "החתן", b = $("#cr-bride").value.trim() || "הכלה";
@@ -3393,7 +3449,8 @@ function refreshLightbox(newImage) {
         ${full ? `<button class="heart" data-lb="heart" aria-pressed="${!!p.hearted}">${ic("heart", 18, 2)}${p.hearts || ""}</button>` : ""}
         ${full ? `<button class="save-btn ${SAVE.ready && SAVE.ready.id === p.id ? "ready" : ""}" data-lb="save" ${SAVE.busy === p.id ? "disabled" : ""}>${SAVE.busy === p.id ? `<span class="spin"></span>מכינים…` : SAVE.ready && SAVE.ready.id === p.id ? `${ic("check", 18, 2.2)}לחצו לשמירה` : `${ic("save", 18, 2)}שמירה`}</button>` : ""}
         ${ours ? `<button class="vis-btn grow" data-lb="vis-open" aria-expanded="${!!S.lb.visOpen}">${ic(p.vis === "teaser" ? "eye" : p.vis === "secret" ? "shield" : p.vis === "escorts" ? "friends" : "lock", 16, 2)}<span>${VIS_LABEL(p.vis)}</span>${ic(S.lb.visOpen ? "chevR" : "chevL", 14, 2)}</button>` : ""}
-        ${p.member_id === ME().id ? `<button class="del" data-lb="del">${S.lb.confirmDel ? "בטוחים? לחצו שוב" : "מחיקה"}</button>` : ""}
+        ${p.member_id === ME().id ? `<button class="del" data-lb="del">${S.lb.confirmDel ? "בטוחים? לחצו שוב" : "מחיקה"}</button>`
+          : `<button class="del" data-lb="report" aria-label="דיווח">${ic("flag", 16, 2)}${canCover() ? "הסרה" : "דיווח"}</button>`}
       </div>`;
   if (!newImage && $(".lb-stage", el) && el.dataset.pid === p.id) {
     $(".lb-top", el).innerHTML = top; $(".lb-info", el).innerHTML = info; return;
@@ -3428,6 +3485,7 @@ document.addEventListener("click", async e => {
   if (!p) return;
   if (k === "heart") return mutate(() => rpc("toggle_heart", { p_token: S.token, p_photo: p.id }));
   if (k === "save") return saveMedia(p);
+  if (k === "report") { const pid = p.id, mid = p.member_id, other = p.team !== mySide(); closeLightbox(); return reportSheet("photo", pid, mid, other); }
   if (k === "vis-open") { S.lb.visOpen = !S.lb.visOpen; refreshLightbox(); return; }
   if (k === "vis") {
     const v = b.dataset.v; S.lb.visOpen = false;
@@ -3586,7 +3644,9 @@ function settingsSheet(focus) {
         <button class="btn ghost block" id="st-zip">${ic("album", 20)}הורדת כל התמונות שאני רואה</button>
       </section>
       <button class="btn danger block" id="st-out">יציאה מהמכשיר הזה</button>
+      ${accountSection()}
     </div>`, sh => {
+      wireAccount(sh);
       $("#st-me", sh).onclick = async () => { if (await mutate(() => rpc("update_me", { p_token: S.token, p_name: $("#st-nick", sh).value, p_role: "guest" }), "נשמר")) closeSheet(); };
       $("#st-zip", sh).onclick = () => backupZip($("#st-zip", sh));
       const out = $("#st-out", sh);
@@ -3631,7 +3691,7 @@ function settingsSheet(focus) {
       </section>` : ""}
       <section class="card stack">
         <h3 class="card-t">גיבוי</h3>
-        <p class="small muted">שום דבר לא נמחק באמת: תמונה שנמחקת נשמרת בשרת ואפשר להחזיר אותה. בנוסף, אפשר להוריד עותק של כל מה שאתם רואים לקובץ ZIP. כדאי לעשות את זה מהמחשב בסוף הערב.</p>
+        <p class="small muted">תמונה שמוחקים נשמרת בשרת ואפשר להחזיר אותה. רק מי שמוחק את החשבון שלו יכול לבקש שגם הקבצים שלו יימחקו. בנוסף, אפשר להוריד עותק של כל מה שאתם רואים לקובץ ZIP. כדאי לעשות את זה מהמחשב בסוף הערב.</p>
         <div id="st-usage" class="small muted">בודקים כמה מקום תפוס…</div>
         <button class="btn ghost block" id="st-zip">${ic("album", 20)}הורדת כל התמונות והסרטונים</button>
       </section>
@@ -3643,9 +3703,11 @@ function settingsSheet(focus) {
         <p class="small muted">את הצד אי אפשר להחליף. מי שנכנס בטעות לצד הלא נכון, יוצא ומצטרף מחדש עם הקוד הנכון.</p>
         <button class="btn danger block" id="st-out">יציאה מהמכשיר הזה</button>
       </section>
+      ${accountSection()}
       <p class="small muted" style="text-align:center">${S.st.members.filter(m => m.team === "groom").length} בחבורת החתן · ${S.st.members.filter(m => m.team === "bride").length} בחבורת הכלה</p>
     </div>`, sh => {
     attachVenuePicker($("#st-v", sh), $("#st-vc", sh));
+    wireAccount(sh);
     rpc("storage_usage", { p_token: S.token }).then(u => {
       const el = $("#st-usage", sh); if (!el || !u) return;
       const mb = b => (b / 1048576).toFixed(b < 10485760 ? 1 : 0);
@@ -3796,6 +3858,7 @@ document.addEventListener("click", async e => {
     case "status": return statusSheet();
     case "slideshow": return slideshow();
     case "recap": return recapSheet();
+    case "report-teaser": { const t = S.st.teasers.find(x => x.id === id); return t && reportSheet("teaser", t.id, t.member_id, t.team !== mySide()); }
     case "cover": closeSheet(); return coverSheet();
     case "cover-hide": store.set("cover.hide." + W().id, true); return render();
     case "cover-sug": return useAsCover(photoById(id));

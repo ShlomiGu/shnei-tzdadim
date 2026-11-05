@@ -1,2 +1,2 @@
-submit
-# change this line to start again: 3
+build only
+# write 'submit' to submit the newest build, 'build' to build and submit; change this line to start again: 4

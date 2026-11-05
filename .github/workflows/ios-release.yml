@@ -35,8 +35,9 @@ jobs:
         run: |
           ONLY="$IN"
           case "$TAG" in ios-submit*) ONLY=latest;; esac
-          if [ "${{ github.event_name }}" = "push" ] && [ -z "$TAG" ] && grep -qi submit release.txt 2>/dev/null; then ONLY=latest; fi
-          echo "ONLY=$ONLY" >> $GITHUB_ENV
+          if [ "${{ github.event_name }}" = "push" ] && [ -z "$TAG" ] && grep -qi '^submit' release.txt 2>/dev/null; then ONLY=latest; fi
+          NOSUBMIT=""; if [ "${{ github.event_name }}" = "push" ] && grep -qi '^build only' release.txt 2>/dev/null; then NOSUBMIT=1; fi
+          echo "ONLY=$ONLY" >> $GITHUB_ENV; echo "NOSUBMIT=$NOSUBMIT" >> $GITHUB_ENV
           echo "mode: ${ONLY:-build and submit}"
 
       - name: Check secrets
@@ -126,7 +127,7 @@ jobs:
         with: { name: xcode-logs, path: "${{ runner.temp }}/*.log", if-no-files-found: ignore }
 
       - name: Submit for App Review
-        if: github.event_name != 'workflow_dispatch' || inputs.submit || env.ONLY != ''
+        if: env.NOSUBMIT != '1' && (github.event_name != 'workflow_dispatch' || inputs.submit || env.ONLY != '')
         env: { ASC_KEY_ID: "${{ secrets.ASC_KEY_ID }}", ASC_ISSUER_ID: "${{ secrets.ASC_ISSUER_ID }}" }
         run: |
           N="$ONLY"; [ -z "$N" ] && N="$BUILD_NUM"
