@@ -2,6 +2,7 @@
 """App Store Connect helper for the release workflow.
 
   asc.py team               -> prints the Team ID (seedId) of the registered bundle id
+  asc.py capability NAME    -> makes sure the App ID has a capability (e.g. PUSH_NOTIFICATIONS)
   asc.py submit BUILD_NUM   -> waits for the uploaded build to finish processing,
                                attaches it to the editable App Store version and
                                submits that version for App Review.
@@ -83,6 +84,24 @@ def team():
     sys.exit(1)
 
 
+def capability(kind):
+    d = must("GET", f"/v1/bundleIds?filter[identifier]={BUNDLE_ID}&include=bundleIdCapabilities&limit=5", what="find bundle id")
+    b = next((x for x in d["data"] if x["attributes"]["identifier"] == BUNDLE_ID), None)
+    if not b:
+        print(f"::error::Bundle id {BUNDLE_ID} is not registered."); sys.exit(1)
+    have = [x["attributes"]["capabilityType"] for x in d.get("included", []) if x["type"] == "bundleIdCapabilities"]
+    if kind in have:
+        print(f"{kind}: already on"); return
+    st, data = call("POST", "/v1/bundleIdCapabilities", {"data": {"type": "bundleIdCapabilities",
+                    "attributes": {"capabilityType": kind},
+                    "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": b["id"]}}}}})
+    if st >= 300:
+        report(st, data, f"enable {kind}")
+        print(f"::warning::Could not turn on {kind} for the App ID; Xcode will try during signing.")
+        return
+    print(f"{kind}: turned on")
+
+
 def submit(build_num):
     aid = app_id()
     if build_num == "latest":
@@ -160,6 +179,8 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "team":
         team()
+    elif cmd == "capability":
+        capability(sys.argv[2])
     elif cmd == "submit":
         submit(sys.argv[2])
     else:

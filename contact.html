@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>שני צדדים · יצירת קשר</title>
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500&family=Rubik:wght@400;600&display=swap">
+<style>
+:root{--bg:#F6F2F4;--surface:#fff;--ink:#241821;--muted:#776A73;--line:#E6DDE2;--gold:#9A7426;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--bg:#140F16;--surface:#1E1720;--ink:#F3ECF1;--muted:#A99BA6;--line:#352A37;--gold:#D9B568;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Rubik","Arial Hebrew",system-ui,sans-serif;font-size:16px;line-height:1.65;
+  padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) max(16px,env(safe-area-inset-left,0px))}
+main{max-width:680px;margin:0 auto;padding:32px 0 56px}
+h1{font-family:"Frank Ruhl Libre",serif;font-weight:500;font-size:clamp(32px,8vw,44px);line-height:1.1;margin:0 0 6px}
+h2{font-family:"Frank Ruhl Libre",serif;font-weight:500;font-size:22px;margin:28px 0 6px}
+p,li{color:var(--ink);max-width:65ch}
+.muted{color:var(--muted);font-size:14px}
+ul{padding-inline-start:20px;margin:6px 0}
+a{color:var(--gold)}
+.card{background:var(--surface);border-radius:20px;padding:4px 20px 18px;margin-top:18px;box-shadow:0 0 0 1px var(--line)}
+nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 22px}
+nav a{padding:7px 14px;border-radius:999px;text-decoration:none;font-size:14px;font-weight:600;color:var(--ink);box-shadow:0 0 0 1px var(--line);background:var(--surface)}
+nav a[aria-current]{background:var(--ink);color:var(--bg);box-shadow:none}
+nav a.home{margin-inline-start:auto;color:var(--gold)}
+.mail-btn{display:inline-flex;align-items:center;gap:8px;margin:6px 0 4px;padding:12px 20px;border-radius:999px;background:var(--ink);color:var(--bg)!important;text-decoration:none;font-weight:600}
+dt{font-weight:600;margin-top:14px}
+dd{margin:2px 0 0;color:var(--ink)}
+</style>
+</head>
+<body>
+<main>
+  <nav aria-label="עמודים"><a href="privacy.html">פרטיות</a><a href="terms.html">תנאי שימוש</a><a href="contact.html" aria-current="page">יצירת קשר</a><a class="home" href="./">לאפליקציה</a></nav>
+  <h1>יצירת קשר</h1>
+  <p class="muted">שני צדדים · עודכן ב-5 בנובמבר 2026</p>
+
+  <div class="card">
+    <h2>כתבו לנו</h2>
+    <p>שאלה, בעיה, רעיון או דיווח על תוכן פוגעני: שלחו מייל ונחזור אליכם בהקדם. דיווחים על תוכן פוגעני נבדקים תוך 24 שעות.</p>
+    <a class="mail-btn" href="mailto:shlomigu110@gmail.com?subject=%D7%A9%D7%A0%D7%99%20%D7%A6%D7%93%D7%93%D7%99%D7%9D">שליחת מייל</a>
+    <p class="muted" style="direction:ltr;text-align:right;user-select:all">shlomigu110@gmail.com</p>
+  </div>
+
+  <div class="card">
+    <h2>שאלות נפוצות</h2>
+    <dl>
+      <dt>איבדתי את קוד ההצטרפות</dt>
+      <dd>בקשו אותו מהזוג או ממי שפתח את החתונה. מי שכבר בפנים מוצא את הקודים בכפתור ההזמנה (האדם עם הפלוס) בראש המסך.</dd>
+      <dt>הצטרפתי לצד הלא נכון</dt>
+      <dd>בהגדרות לוחצים "יציאה מהמכשיר הזה" ומצטרפים שוב עם הקוד הנכון.</dd>
+      <dt>לא מגיעות התראות</dt>
+      <dd>בהגדרות, תחת "התראות", בודקים שהן מופעלות ושהסוגים שאתם רוצים מסומנים. באייפון בודקים גם בהגדרות של הטלפון ← שני צדדים ← עדכונים.</dd>
+      <dt>איך מדווחים על תוכן או חוסמים מישהו</dt>
+      <dd>לוחצים על סימן הדגל ליד התמונה או הטיזר, בוחרים סיבה, ואם רוצים מסמנים "לחסום".</dd>
+      <dt>איך מוחקים את החשבון</dt>
+      <dd>הגדרות ← פרטיות וחשבון ← "מחיקת החשבון שלי".</dd>
+      <dt>איך מוחקים חתונה שלמה</dt>
+      <dd>כתבו לנו עם שמות בני הזוג ותאריך החתונה, ונמחק את כל המידע שלה תוך 30 יום.</dd>
+    </dl>
+  </div>
+
+</main>
+</body>
+</html>

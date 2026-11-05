@@ -454,6 +454,21 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .rc-toggle input{width:22px;height:22px;margin-top:2px;accent-color:var(--gold);flex:none}
 .rc-toggle b{display:block;font-weight:600;font-size:15px}
 .tiny{font-size:11.5px;line-height:1.4}
+.docpage{position:fixed;inset:0;z-index:70;background:var(--bg);display:flex;flex-direction:column;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 10px) max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));animation:up .25s}
+.docpage-h{display:flex;align-items:center;gap:8px}
+.docpage-h h2{font-family:var(--f-display);font-weight:500;font-size:26px}
+.docpage-b{flex:1;overflow:auto;overscroll-behavior:contain;margin-inline:-16px;padding:0 16px calc(env(safe-area-inset-bottom,0px) + 28px);line-height:1.65}
+.docpage-b .muted{color:var(--muted);font-size:14px}
+.docpage-b .card{padding:4px 18px 16px;margin-top:14px}
+.docpage-b h2{font-family:var(--f-display);font-weight:500;font-size:21px;margin:18px 0 4px}
+.docpage-b ul,.docpage-b ol{padding-inline-start:20px;margin:6px 0}
+.docpage-b li+li{margin-top:4px}
+.docpage-b dt{font-weight:600;margin-top:14px}
+.docpage-b dd{margin:2px 0 0}
+.docpage-b a{color:var(--gold-ink);font-weight:600}
+.docpage-b .mail-btn{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;padding:13px 16px;border-radius:999px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:600}
+.doc-links{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;color:var(--muted)}
+button.link{background:none;border:0;padding:0;font-family:inherit;line-height:inherit;cursor:pointer}
 .songs{position:fixed;inset:0;z-index:58;background:var(--bg);display:flex;flex-direction:column;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 10px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(16px,env(safe-area-inset-left,0px));animation:up .25s}
 .songs-h{display:flex;align-items:center;gap:8px}
 .songs-h h2{font-family:var(--f-display);font-weight:500;font-size:26px}
@@ -873,9 +888,16 @@ const VAPID_PUBLIC = "BMm4tqW2sO8vdjX9e2ZcNgbQzBuUQ5YTXUH2e7MpCeCn2DCmlm5ixTaFTg
 const isIOS = () => /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const pushSupported = () => !IS_NATIVE && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+// the iPhone app gets its notifications from Apple (APNs) through the PushNotifications plugin
+const PN = () => (IS_NATIVE && window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "ios" && window.Capacitor.Plugins && window.Capacitor.Plugins.PushNotifications) || null;
+let nativePerm = null, pnReady = false, pnWait = null;
 // "ok" | "needs-home" (iPhone in Safari) | "blocked" | "unsupported" | "off"
 function pushState() {
-  if (IS_NATIVE) return "unsupported";
+  if (IS_NATIVE) {
+    if (!PN()) return "unsupported";
+    if (nativePerm === "denied") return "blocked";
+    return nativePerm === "granted" && store.get("push.on", false) ? "ok" : "off";
+  }
   if (isIOS() && !isStandalone()) return "needs-home";
   if (!pushSupported()) return "unsupported";
   if (Notification.permission === "denied") return "blocked";
@@ -883,7 +905,8 @@ function pushState() {
 }
 let swReg = null;
 function registerSW() {
-  if (IS_NATIVE || !("serviceWorker" in navigator) || location.protocol !== "https:") return;
+  if (IS_NATIVE) { setupNativePush(); return; }
+  if (!("serviceWorker" in navigator) || location.protocol !== "https:") return;
   navigator.serviceWorker.register("sw.js").then(r => { swReg = r; if (pushState() === "ok") syncPush(); }, () => {});
 }
 const b64u = s => { const p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(b, c => c.charCodeAt(0)); };
@@ -898,7 +921,44 @@ async function syncPush() {
     return true;
   } catch (e) { console.warn("push", e); return false; }
 }
+async function setupNativePush() {
+  const pn = PN(); if (!pn || pnReady) return; pnReady = true;
+  pn.addListener("registration", async t => {
+    const dev = t && t.value; if (!dev) { if (pnWait) pnWait(false); return; }
+    store.set("push.dev", dev);
+    try { await rpc("save_device", { p_token: S.token, p_device: dev }); if (pnWait) pnWait(true); }
+    catch (e) { console.warn("push", e); if (pnWait) pnWait(false); }
+  });
+  pn.addListener("registrationError", e => { console.warn("push", e); if (pnWait) pnWait(false); });
+  // with the app open, iOS shows nothing: a quiet note for what the screen doesn't already announce
+  pn.addListener("pushNotificationReceived", n => {
+    const tag = (n && n.data && n.data.tag) || "";
+    if (/^(sched|soon|status|task|photos|after|letter)/.test(tag)) toast((n.title || "") + (n.body ? " · " + n.body : ""), "bell");
+    refresh();
+  });
+  pn.addListener("pushNotificationActionPerformed", a => {
+    const url = a && a.notification && a.notification.data && a.notification.data.url;
+    if (!url || !url.startsWith("#")) return;
+    if (location.hash === url) { if (S.st) setView(url.slice(1)); } else location.hash = url;
+  });
+  try { nativePerm = (await pn.checkPermissions()).receive; } catch {}
+  if (pushState() === "ok") pn.register().catch(() => {});   // the device address can change, so it is refreshed on every start
+  if (S.st) render();
+}
+async function enableNativePush() {
+  const pn = PN();
+  let p; try { p = await pn.requestPermissions(); } catch { p = { receive: "denied" }; }
+  nativePerm = p.receive;
+  if (p.receive !== "granted") { toast("ההתראות כבויות. אפשר להפעיל אותן בהגדרות של האייפון", "x"); render(); return; }
+  await setupNativePush();
+  const ok = await new Promise(res => { pnWait = res; pn.register().catch(() => res(false)); setTimeout(() => res(false), 15000); });
+  pnWait = null;
+  if (ok) { store.set("push.on", true); toast("ההתראות פועלות", "check"); }
+  else toast("לא הצלחנו להפעיל התראות. בדקו שיש אינטרנט ונסו שוב", "x");
+  render();
+}
 async function enablePush() {
+  if (IS_NATIVE) return PN() ? enableNativePush() : toast("ההתראות יגיעו בגרסה הבאה של האפליקציה", "bell");
   const st = pushState();
   if (st === "needs-home") return homeScreenSheet();
   if (st === "blocked") return toast("ההתראות חסומות בהגדרות הדפדפן. אפשרו אותן לאתר ונסו שוב", "x");
@@ -912,10 +972,22 @@ async function enablePush() {
 }
 async function disablePush() {
   store.set("push.on", false);
+  if (IS_NATIVE) {
+    const dev = store.get("push.dev", "");
+    try { if (dev) await rpc("remove_device", { p_token: S.token, p_device: dev }); if (PN()) await PN().unregister(); } catch {}
+    toast("ההתראות כבויות", "check"); render(); return;
+  }
   try { const reg = swReg || await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription();
     if (sub) { await rpc("remove_push", { p_token: S.token, p_endpoint: sub.endpoint }); await sub.unsubscribe(); } } catch {}
   toast("ההתראות כבויות", "check"); render();
 }
+const NOTIF_CATS = [
+  ["teasers", "טיזרים ומה שנשלח אליכם", "טיזר מהצד השני, תמונה שנשלחה רק למלווים, מכתב חתום שנפתח"],
+  ["photos", "תמונות חדשות באלבום", "סיכום אחד כל 20 דקות, לא על כל תמונה"],
+  ["schedule", "תזכורות מהלו״ז", "10 דקות לפני כל שלב, ורבע שעה לפני החשיפה"],
+  ["tasks", "משימות שקיבלתי", "כשמישהו נותן לכם משימה"],
+  ["status", "איפה הצד השני", "כשהם מעדכנים: יצאנו לדרך, הגענו לאולם…"],
+];
 function homeScreenSheet() {
   openSheet("התראות באייפון", `<div class="stack">
     <p>באייפון, התראות מגיעות רק כשהאתר מותקן כאפליקציה במסך הבית. זה לוקח 10 שניות:</p>
@@ -928,7 +1000,7 @@ function pushCard() {
   if (store.get("push.hide", false)) return "";
   const st = pushState();
   if (st === "ok" || st === "unsupported" || st === "blocked") return "";
-  const what = isGuest() ? "כשהאלבום נפתח" : "כשמגיע טיזר, ברגע החשיפה וכשנשלחת אליכם תמונה";
+  const what = isGuest() ? "רגע לפני שהאלבום נפתח, וכשהוא נפתח" : "כשמגיע טיזר, כשעולות תמונות, לפני כל שלב בלו״ז וברגע החשיפה";
   return `<div class="push-card"><span class="push-ic">${ic("bell", 20)}</span><span class="grow"><b>רוצים לדעת ${isGuest() ? "מתי זה קורה" : "ראשונים"}?</b><span>התראה ${what}</span></span>
     <button class="btn sm" data-act="push-on">${st === "needs-home" ? "איך?" : "הפעלה"}</button><button class="icon-btn" data-act="push-hide" aria-label="לא עכשיו">${ic("x", 16)}</button></div>`;
 }
@@ -1100,12 +1172,51 @@ function reportSheet(kind, id, mid, otherSideAuthor) {
     };
   });
 }
+/* privacy · terms · contact: shown as a page inside the app (links to other files would leave the app on iPhone) */
+const DOCS = { privacy: ["מדיניות פרטיות", "privacy.html"], terms: ["תנאי שימוש", "terms.html"], contact: ["יצירת קשר", "contact.html"] };
+const docCache = {};
+function docPage(which) {
+  if (!DOCS[which]) which = "privacy";
+  let el = $(".docpage");
+  if (!el) {
+    el = document.createElement("div"); el.className = "docpage"; el.dir = "rtl"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true");
+    el.innerHTML = `<div class="docpage-h"><button class="icon-btn" data-x aria-label="חזרה">${ic("x")}</button><h2></h2></div>
+      <div class="seg doc-tabs" role="group" aria-label="עמודים">${Object.entries(DOCS).map(([k, [t]]) => `<button type="button" data-dtab="${k}">${t}</button>`).join("")}</div>
+      <div class="docpage-b"></div>`;
+    document.body.appendChild(el);
+    el.addEventListener("click", e => {
+      if (e.target.closest("[data-x]")) { el.remove(); return; }
+      const t = e.target.closest("[data-dtab]"); if (t) return show(t.dataset.dtab);
+      const a = e.target.closest("a[href]"); if (!a) return;
+      const m = (a.getAttribute("href") || "").match(/^(privacy|terms|contact)\.html/);
+      if (m) { e.preventDefault(); show(m[1]); }
+    });
+  }
+  const show = async k => {
+    $(".docpage-h h2", el).textContent = DOCS[k][0];
+    el.querySelectorAll("[data-dtab]").forEach(b => b.setAttribute("aria-pressed", b.dataset.dtab === k));
+    const b = $(".docpage-b", el); b.scrollTop = 0;
+    if (!docCache[k]) {
+      b.innerHTML = `<div class="songs-empty"><span class="spin"></span></div>`;
+      try {
+        const html = await fetch(DOCS[k][1], { cache: "no-cache" }).then(r => { if (!r.ok) throw 0; return r.text(); });
+        const d = new DOMParser().parseFromString(html, "text/html");
+        d.querySelectorAll("script,style,nav,h1").forEach(x => x.remove());
+        d.querySelectorAll("a[href^='mailto:'],a[href^='http']").forEach(a => a.removeAttribute("target"));
+        docCache[k] = (d.querySelector("main") || d.body).innerHTML;
+      } catch { b.innerHTML = `<div class="songs-empty">לא הצלחנו לטעון את העמוד. בדקו את החיבור ונסו שוב</div>`; return; }
+    }
+    b.innerHTML = docCache[k];
+  };
+  show(which);
+}
+document.addEventListener("click", e => { const d = e.target.closest("[data-doc]"); if (d) { e.preventDefault(); docPage(d.dataset.doc); } });
 function accountSection() {
   const bl = S.st.blocked || [];
   return `<section class="card stack">
     <h3 class="card-t">פרטיות וחשבון</h3>
     ${bl.length ? `<div class="stack" style="gap:8px"><span class="eyebrow">חסומים</span>${bl.map(b => `<div class="row" style="align-items:center"><span class="grow">${esc(b.name)}</span><button class="chip" data-unblock="${esc(b.id)}">ביטול חסימה</button></div>`).join("")}</div>` : `<p class="small muted">כדי לדווח על תמונה או טיזר, או לחסום מישהו, לחצו על ${ic("flag", 13, 2)} ליד התוכן.</p>`}
-    <a class="link small" href="privacy.html" target="_blank" rel="noopener">מדיניות פרטיות, תנאי שימוש ויצירת קשר</a>
+    <div class="doc-links"><button type="button" class="link small" data-doc="privacy">מדיניות פרטיות</button><span aria-hidden="true">·</span><button type="button" class="link small" data-doc="terms">תנאי שימוש</button><span aria-hidden="true">·</span><button type="button" class="link small" data-doc="contact">יצירת קשר</button></div>
     <button class="btn line block" id="st-delacc">מחיקת החשבון שלי</button>
   </section>`;
 }
@@ -2800,6 +2911,7 @@ function renderLanding() {
       <button class="btn block" data-act="go-join" style="background:var(--ink);color:var(--bg)">יש לי קוד הצטרפות</button>
       <button class="btn line block" data-act="go-create">פותחים חתונה חדשה</button>
     </div>
+    <div class="doc-links" style="justify-content:center"><button type="button" class="link small" data-doc="privacy">פרטיות</button><span aria-hidden="true">·</span><button type="button" class="link small" data-doc="terms">תנאי שימוש</button><span aria-hidden="true">·</span><button type="button" class="link small" data-doc="contact">יצירת קשר</button></div>
   </div>`);
 }
 function renderJoin(prefill = "") {
@@ -2814,7 +2926,7 @@ function renderJoin(prefill = "") {
         <div class="field"><label for="jn-name">איך קוראים לכם</label><input class="input" id="jn-name" maxlength="30" autocomplete="given-name" placeholder="השם שיופיע לחברים"></div>
         <div class="seg" role="group" aria-label="תפקיד"><button type="button" data-role="escort" aria-pressed="true">מלווה</button><button type="button" data-role="couple" aria-pressed="false" id="jn-couple">אני</button></div>
         <button class="btn block" type="submit" id="jn-go">הצטרפות</button>
-        <p class="tiny muted" style="text-align:center">בהצטרפות אתם מסכימים ל<a class="link" href="privacy.html#terms" target="_blank" rel="noopener">תנאי השימוש</a>: אין מקום לתוכן פוגעני או להטרדה, ותוכן כזה יוסר.</p>
+        <p class="tiny muted" style="text-align:center">בהצטרפות אתם מסכימים ל<button type="button" class="link" data-doc="terms">תנאי השימוש</button>: אין מקום לתוכן פוגעני או להטרדה, ותוכן כזה יוסר.</p>
       </div>
     </form></div>`);
   const input = $("#jn-code");
@@ -2876,7 +2988,7 @@ function renderCreate() {
       <div class="seg" role="group"><button type="button" data-role="escort" aria-pressed="true">מלווה</button><button type="button" data-role="couple" aria-pressed="false" id="cr-couple">אני החתן / הכלה</button></div>
       <div class="field"><label for="cr-name">השם שלכם</label><input class="input" id="cr-name" maxlength="30" required></div>
       <button class="btn block gold" type="submit" id="cr-go" disabled>${ic("sparkle", 20)}יוצאים לדרך</button>
-      <p class="tiny muted" style="text-align:center">בפתיחת החתונה אתם מסכימים ל<a class="link" href="privacy.html#terms" target="_blank" rel="noopener">תנאי השימוש</a>: אין מקום לתוכן פוגעני או להטרדה, ותוכן כזה יוסר.</p>
+      <p class="tiny muted" style="text-align:center">בפתיחת החתונה אתם מסכימים ל<button type="button" class="link" data-doc="terms">תנאי השימוש</button>: אין מקום לתוכן פוגעני או להטרדה, ותוכן כזה יוסר.</p>
     </form></div>`);
   const upd = () => {
     const g = $("#cr-groom").value.trim() || "החתן", b = $("#cr-bride").value.trim() || "הכלה";
@@ -3638,7 +3750,7 @@ function settingsSheet(focus) {
         <div class="field"><label for="st-nick">השם שלי</label><input class="input" id="st-nick" maxlength="30" value="${esc(me.name)}"></div>
         <button class="btn ghost block" id="st-me">שמירה</button>
       </section>
-      ${pushState() !== "unsupported" && pushState() !== "ok" ? `<button class="btn block" data-act="push-on">${ic("bell", 18)}${pushState() === "needs-home" ? "איך מקבלים התראות באייפון" : "התראה כשהאלבום נפתח"}</button>` : ""}
+      ${pushState() !== "unsupported" && pushState() !== "ok" ? `<button class="btn block" data-act="push-on">${ic("bell", 18)}${pushState() === "needs-home" ? "איך מקבלים התראות באייפון" : "התראה כשהאלבום נפתח"}</button>` : pushState() === "ok" ? `<button class="btn ghost block" data-act="push-off">${ic("bell", 18)}כיבוי התראות במכשיר הזה</button>` : ""}
       <section class="card stack">
         <h3 class="card-t">גיבוי</h3>
         <button class="btn ghost block" id="st-zip">${ic("album", 20)}הורדת כל התמונות שאני רואה</button>
@@ -3682,12 +3794,15 @@ function settingsSheet(focus) {
         <div class="field"><label for="st-c">טלפונים חשובים</label><textarea class="input" id="st-c" placeholder="שורה לכל איש קשר: שם | תפקיד | טלפון&#10;דנה | צלמת | 050-0000000">${esc(contacts)}</textarea></div>
         <button class="btn ghost block" id="st-save">שמירה</button>
       </section>
-      ${pushState() !== "unsupported" ? `<section class="card stack">
+      ${pushState() !== "unsupported" ? `<section class="card stack" id="st-notif">
         <h3 class="card-t">התראות</h3>
-        <p class="small muted">טיזר חדש מהצד השני, תמונה שנשלחה רק למלווים, רגע החשיפה ומכתב חתום שנפתח.</p>
-        ${pushState() === "ok" ? `<button class="btn ghost block" data-act="push-off">${ic("bell", 18)}כיבוי התראות במכשיר הזה</button>`
-          : pushState() === "blocked" ? `<p class="small">ההתראות חסומות בהגדרות הדפדפן. אפשרו אותן לאתר.</p>`
-          : `<button class="btn block" data-act="push-on">${ic("bell", 18)}${pushState() === "needs-home" ? "איך מפעילים באייפון" : "הפעלת התראות"}</button>`}
+        ${pushState() === "ok" ? `<p class="small muted">מה יגיע לטלפון הזה:</p>
+          <div class="stack" style="gap:8px">${NOTIF_CATS.map(([k, t, d]) => `<label class="rc-toggle"><input type="checkbox" data-ncat="${k}" ${(ME().notify || {})[k] === false ? "" : "checked"}><span><b>${t}</b><span class="small muted">${d}</span></span></label>`).join("")}</div>
+          <p class="small muted">רגע החשיפה והבוקר שאחרי נשלחים תמיד.</p>
+          <button class="btn ghost block" data-act="push-off">${ic("bell", 18)}כיבוי כל ההתראות במכשיר הזה</button>`
+          : `<p class="small muted">טיזרים מהצד השני, תמונות חדשות באלבום, תזכורת לפני כל שלב בלו״ז, משימות שקיבלתם ורגע החשיפה. אתם בוחרים מה מגיע.</p>
+          ${pushState() === "blocked" ? `<p class="small">${IS_NATIVE ? "ההתראות כבויות בהגדרות האייפון: הגדרות ← שני צדדים ← עדכונים." : "ההתראות חסומות בהגדרות הדפדפן. אפשרו אותן לאתר."}</p>`
+          : `<button class="btn block" data-act="push-on">${ic("bell", 18)}${pushState() === "needs-home" ? "איך מפעילים באייפון" : "הפעלת התראות"}</button>`}`}
       </section>` : ""}
       <section class="card stack">
         <h3 class="card-t">גיבוי</h3>
@@ -3708,6 +3823,10 @@ function settingsSheet(focus) {
     </div>`, sh => {
     attachVenuePicker($("#st-v", sh), $("#st-vc", sh));
     wireAccount(sh);
+    sh.querySelectorAll("[data-ncat]").forEach(cb => cb.onchange = async () => {
+      try { const v = await rpc("set_notify", { p_token: S.token, p_prefs: { [cb.dataset.ncat]: cb.checked } }); S.st.me.notify = v; }
+      catch { cb.checked = !cb.checked; toast("לא נשמר. נסו שוב", "x"); }
+    });
     rpc("storage_usage", { p_token: S.token }).then(u => {
       const el = $("#st-usage", sh); if (!el || !u) return;
       const mb = b => (b / 1048576).toFixed(b < 10485760 ? 1 : 0);

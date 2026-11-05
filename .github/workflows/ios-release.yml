@@ -65,8 +65,9 @@ jobs:
         env: { ASC_KEY_ID: "${{ secrets.ASC_KEY_ID }}", ASC_ISSUER_ID: "${{ secrets.ASC_ISSUER_ID }}", TEAM: "${{ secrets.APPLE_TEAM_ID }}" }
         run: |
           if [ -z "$TEAM" ]; then TEAM=$(python3 scripts/asc.py team); fi
-          echo "Team: $TEAM"
+          echo "::notice title=Team ID::$TEAM"
           echo "TEAM_ID=$TEAM" >> $GITHUB_ENV
+          python3 scripts/asc.py capability PUSH_NOTIFICATIONS || true
 
       - uses: actions/setup-node@v4
         if: env.ONLY == ''

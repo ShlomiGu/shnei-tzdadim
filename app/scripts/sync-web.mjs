@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node
 const src = process.env.SITE_DIR || "../shnei-tzdadim/site";
 if (existsSync(src)) {
   mkdirSync("www", { recursive: true });
-  for (const f of ["index.html", "venues.json", "manifest.json", "privacy.html", "og.png", "icon-180.png", "icon-192.png", "icon-512.png"])
+  for (const f of ["index.html", "venues.json", "manifest.json", "privacy.html", "terms.html", "contact.html", "og.png", "icon-180.png", "icon-192.png", "icon-512.png"])
     if (existsSync(`${src}/${f}`)) cpSync(`${src}/${f}`, `www/${f}`);
 }
 // Capacitor injects window.Capacitor; nothing else to change: the page detects it at runtime.
