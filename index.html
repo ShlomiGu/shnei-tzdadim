@@ -648,7 +648,7 @@ let tusLib = null;
 function loadTus() {
   if (!tusLib) tusLib = new Promise((res, rej) => {
     const sc = document.createElement("script");
-    sc.src = "https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/dist/tus.min.js";
+    sc.src = "vendor/tus.min.js";
     sc.onload = () => res(window.tus); sc.onerror = () => { tusLib = null; rej(new ApiError("network")); };
     document.head.appendChild(sc);
   });
@@ -766,7 +766,11 @@ const ERR = {
   couple_only: "רק החתן או הכלה יכולים לכתוב מכתב חתום",
   not_found: "הפריט כבר לא קיים",
   empty: "כתבו משהו או צרפו תמונה",
-  quota: "האחסון בשרת התמלא. המארגן יכול להגדיל אותו, ובינתיים כדאי להעלות פחות סרטונים"
+  quota: "האחסון בשרת התמלא. המארגן יכול להגדיל אותו, ובינתיים כדאי להעלות פחות סרטונים",
+  couple_taken: "מישהו כבר נרשם כאן כחתן או ככלה. הצטרפו כמלווים, ואם זו טעות, מי שנרשם יכול לשנות לתפקיד מלווה בהגדרות",
+  too_many: "יותר מדי ניסיונות. חכו כמה דקות ונסו שוב",
+  reveal_owner: "את שעת החשיפה קובעים הזוג או מי שפתח את החתונה",
+  bad_path: "ההעלאה לא הצליחה. נסו שוב"
 };
 async function act(fn, okMsg) {
   try { const r = await fn(); if (okMsg) toast(okMsg, "check"); return r ?? true; }
@@ -2959,7 +2963,7 @@ function renderJoin(prefill = "") {
     e.preventDefault(); if (!info) return;
     const name = $("#jn-name").value.trim(); if (!name) { $("#jn-name").focus(); return toast(ERR.missing_name, "user"); }
     $("#jn-go").disabled = true;
-    const r = await act(() => rpc("join_wedding", { p_code: input.value, p_name: name, p_role: role }));
+    const r = await act(async () => { const x = await rpc("join_wedding", { p_code: input.value, p_name: name, p_role: role }); if (x && x.error) throw { code: x.error }; return x; });
     if (r && r.token) { onAuthed(r.token, `ברוכים הבאים ל${teamLabel(r.team)}`); }
     else $("#jn-go").disabled = false;
   });
@@ -3058,7 +3062,7 @@ function codeCard(team, code, sub) {
 }
 let qrLib = null;
 function loadQR() {
-  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"; sc.onload = () => res(window.qrcode); sc.onerror = () => { qrLib = null; rej(new ApiError("network")); }; document.head.appendChild(sc); });
+  if (!qrLib) qrLib = new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "vendor/qrcode.js"; sc.onload = () => res(window.qrcode); sc.onerror = () => { qrLib = null; rej(new ApiError("network")); }; document.head.appendChild(sc); });
   return qrLib;
 }
 async function qrSvg(text, px) {
@@ -3121,7 +3125,7 @@ function inviteSheet(first) {
     ${first ? `<p class="muted">שלחו את הקוד לחבורה שלכם. כל מי שמצטרף עם הקוד נכנס ל${teamLabel(side)} ורואה רק את התמונות שלה.</p>` : `<p class="muted">כל מי שמצטרף עם הקוד הזה נכנס ל${teamLabel(side)}.</p>`}
     ${codeCard(side, w.my_code)}
     ${w.other_code ? `<div class="lbl" style="margin-top:6px">ולצד השני</div>
-      ${codeCard(other, w.other_code, `שלחו ל${coupleName(other)} או למלווה מהצד ${other === "bride" ? "שלה" : "שלו"}. אחרי שמישהו מהם מצטרף, הקוד הזה יוצג רק להם.`)}` : `<p class="small muted">${teamLabel(other)} כבר בפנים. את הקוד שלהם מקבלים רק מהם.</p>`}
+      ${codeCard(other, w.other_code, `שלחו ל${coupleName(other)} או למלווה מהצד ${other === "bride" ? "שלה" : "שלו"}. אחרי שמישהו מהם מצטרף, הקוד הזה יוצג רק להם.`)}` : `<p class="small muted">${S.st.members.some(x => x.team === other) ? `${teamLabel(other)} כבר בפנים. את הקוד שלהם מקבלים רק מהם.` : `את הקוד של ${teamLabel(other)} שולחים הזוג או מי שפתח את החתונה.`}</p>`}
     ${w.guest_code ? `<div class="lbl" style="margin-top:6px">ולאורחים</div>${guestCodeCard(w.guest_code)}` : ""}
     ${first ? `<button class="btn line block" data-close>למסך הבית</button>` : ""}
   </div>`, sh => {
@@ -3780,10 +3784,11 @@ function settingsSheet(focus) {
       <section class="card stack">
         <h3 class="card-t">רגע החשיפה</h3>
         <p class="small muted">כל צד רואה רק את התמונות של עצמו. ברגע החשיפה הכל נפתח לשני הצדדים, חוץ ממה שסומן כסוד. טיזרים נראים מטושטשים עד אז.</p>
-        <div class="row"><div class="field grow"><label for="st-rd">תאריך</label><input class="input" type="date" id="st-rd" value="${esc(rDate)}"></div><div class="field" style="width:40%"><label for="st-rt">שעה</label><input class="input" type="time" id="st-rt" value="${esc(rTime)}"></div></div>
+        ${me.can_cover ? `<div class="row"><div class="field grow"><label for="st-rd">תאריך</label><input class="input" type="date" id="st-rd" value="${esc(rDate)}"></div><div class="field" style="width:40%"><label for="st-rt">שעה</label><input class="input" type="time" id="st-rt" value="${esc(rTime)}"></div></div>
         <button class="btn ghost block" id="st-rsave">שמירת שעת החשיפה</button>
         ${rv ? (w.revealed_at ? `<button class="btn line block" id="st-undo">ביטול החשיפה הידנית</button>` : `<div class="notice">${ic("sparkle", 18)}<span>החשיפה כבר קרתה.</span></div>`)
-          : `<button class="btn gold block" id="st-now">${ic("sparkle", 20)}חושפים עכשיו</button>`}
+          : `<button class="btn gold block" id="st-now">${ic("sparkle", 20)}חושפים עכשיו</button>`}`
+        : `<div class="notice">${ic("sparkle", 18)}<span>${rv ? "החשיפה כבר קרתה." : `החשיפה ב-${esc(rTime)}${rDate !== w.date ? ` (${esc(rDate)})` : ""}. את השעה קובעים הזוג או מי שפתח את החתונה.`}</span></div>`}
       </section>
       <section class="card stack">
         <h3 class="card-t">החתונה</h3>
@@ -3836,7 +3841,7 @@ function settingsSheet(focus) {
     }).catch(() => { const el = $("#st-usage", sh); if (el) el.textContent = ""; });
     $("#st-zip", sh).onclick = () => backupZip($("#st-zip", sh));
     if (focus === "contacts") setTimeout(() => { $("#st-c", sh).scrollIntoView({ block: "center" }); $("#st-c", sh).focus(); }, 300);
-    $("#st-rsave", sh).onclick = () => { const d = $("#st-rd", sh).value, t = $("#st-rt", sh).value; if (d && t) mutate(() => rpc("update_wedding", { p_token: S.token, p: { reveal_at: new Date(`${d}T${t}:00`).toISOString() } }), "שעת החשיפה עודכנה"); };
+    if ($("#st-rsave", sh)) $("#st-rsave", sh).onclick = () => { const d = $("#st-rd", sh).value, t = $("#st-rt", sh).value; if (d && t) mutate(() => rpc("update_wedding", { p_token: S.token, p: { reveal_at: new Date(`${d}T${t}:00`).toISOString() } }), "שעת החשיפה עודכנה"); };
     const now = $("#st-now", sh);
     if (now) now.onclick = async () => {
       if (!now.dataset.sure) { now.dataset.sure = 1; now.textContent = "בטוחים? הכל ייפתח לשני הצדדים"; setTimeout(() => { if (now.isConnected) { delete now.dataset.sure; now.innerHTML = `${ic("sparkle", 20)}חושפים עכשיו`; } }, 4500); return; }
@@ -3861,7 +3866,7 @@ let zipLib = null;
 function loadZip() {
   if (!zipLib) zipLib = new Promise((res, rej) => {
     const sc = document.createElement("script");
-    sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    sc.src = "vendor/jszip.min.js";
     sc.onload = () => res(window.JSZip); sc.onerror = () => { zipLib = null; rej(new ApiError("network")); };
     document.head.appendChild(sc);
   });

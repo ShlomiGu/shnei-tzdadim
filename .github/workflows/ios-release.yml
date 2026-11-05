@@ -18,6 +18,9 @@ on:
 
 concurrency: { group: ios-release, cancel-in-progress: false }
 
+permissions:
+  contents: read
+
 env:
   BUNDLE_ID: com.shneitzdadim.app
   APP_VERSION: "1.0"
@@ -29,6 +32,7 @@ jobs:
     defaults: { run: { working-directory: app, shell: bash } }
     steps:
       - uses: actions/checkout@v4
+        with: { persist-credentials: false }
 
       - name: Mode
         env: { IN: "${{ inputs.submit_only }}", TAG: "${{ github.ref_type == 'tag' && github.ref_name || '' }}" }
@@ -52,23 +56,6 @@ jobs:
           [ -z "$P" ] && missing="$missing ASC_KEY_P8"
           if [ -n "$missing" ]; then echo "::error::Missing repository secrets:$missing"; exit 1; fi
 
-      - name: API key
-        env: { P8: "${{ secrets.ASC_KEY_P8 }}" }
-        run: |
-          mkdir -p ~/.appstoreconnect/private_keys
-          printf '%s\n' "$P8" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
-          echo "ASC_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" >> $GITHUB_ENV
-          python3 -m pip install --quiet --break-system-packages "pyjwt[crypto]" || python3 -m pip install --quiet "pyjwt[crypto]"
-
-      - name: Team ID
-        if: env.ONLY == ''
-        env: { ASC_KEY_ID: "${{ secrets.ASC_KEY_ID }}", ASC_ISSUER_ID: "${{ secrets.ASC_ISSUER_ID }}", TEAM: "${{ secrets.APPLE_TEAM_ID }}" }
-        run: |
-          if [ -z "$TEAM" ]; then TEAM=$(python3 scripts/asc.py team); fi
-          echo "::notice title=Team ID::$TEAM"
-          echo "TEAM_ID=$TEAM" >> $GITHUB_ENV
-          python3 scripts/asc.py capability PUSH_NOTIFICATIONS || true
-
       - uses: actions/setup-node@v4
         if: env.ONLY == ''
         with: { node-version: 22, cache: npm, cache-dependency-path: app/package-lock.json }
@@ -79,6 +66,23 @@ jobs:
           npm ci
           SITE_DIR=.. node scripts/sync-web.mjs
           npx cap sync ios
+
+      - name: API key
+        env: { P8: "${{ secrets.ASC_KEY_P8 }}" }
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s\n' "$P8" > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8
+          echo "ASC_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_${{ secrets.ASC_KEY_ID }}.p8" >> $GITHUB_ENV
+          python3 -m pip install --quiet --break-system-packages "pyjwt[crypto]==2.10.1" || python3 -m pip install --quiet "pyjwt[crypto]==2.10.1"
+
+      - name: Team ID
+        if: env.ONLY == ''
+        env: { ASC_KEY_ID: "${{ secrets.ASC_KEY_ID }}", ASC_ISSUER_ID: "${{ secrets.ASC_ISSUER_ID }}", TEAM: "${{ secrets.APPLE_TEAM_ID }}" }
+        run: |
+          if [ -z "$TEAM" ]; then TEAM=$(python3 scripts/asc.py team); fi
+          echo "::notice title=Team ID::$TEAM"
+          echo "TEAM_ID=$TEAM" >> $GITHUB_ENV
+          python3 scripts/asc.py capability PUSH_NOTIFICATIONS || true
 
       - name: Archive
         if: env.ONLY == ''

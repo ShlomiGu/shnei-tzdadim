@@ -5,6 +5,8 @@ if (existsSync(src)) {
   mkdirSync("www", { recursive: true });
   for (const f of ["index.html", "venues.json", "manifest.json", "privacy.html", "terms.html", "contact.html", "og.png", "icon-180.png", "icon-192.png", "icon-512.png"])
     if (existsSync(`${src}/${f}`)) cpSync(`${src}/${f}`, `www/${f}`);
+  // third-party libraries are served from the app itself, not from a CDN
+  if (existsSync(`${src}/vendor`)) cpSync(`${src}/vendor`, "www/vendor", { recursive: true });
 }
 // Capacitor injects window.Capacitor; nothing else to change: the page detects it at runtime.
 let html = readFileSync("www/index.html", "utf8");
