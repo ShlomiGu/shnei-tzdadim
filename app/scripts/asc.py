@@ -148,13 +148,37 @@ def submit(build_num):
 
     must("PATCH", f"/v1/appStoreVersions/{vid}/relationships/build",
          {"data": {"type": "builds", "id": bid}}, what="attach build to version")
-    print("build attached")
+    print(f"::notice title=Build attached::{APP_VERSION} ({build_num}) is now the build of version {v['attributes']['versionString']}")
 
-    # reuse an open submission if one exists, otherwise create one
-    d = must("GET", f"/v1/reviewSubmissions?filter[app]={aid}&filter[platform]=IOS"
-                     f"&filter[state]=READY_FOR_REVIEW,UNRESOLVED_ISSUES", what="list submissions")
-    if d["data"]:
-        sid = d["data"][0]["id"]
+    # every submission of the app, so the run page shows where things stand
+    d = must("GET", f"/v1/reviewSubmissions?filter[app]={aid}&filter[platform]=IOS&limit=20", what="list submissions")
+    subs = d["data"]
+    for x in subs:
+        print(f"::notice title=submission {x['id'][:8]}::{x['attributes'].get('state')} submitted={x['attributes'].get('submittedDate')}")
+    # one that already holds this version and can still be sent (e.g. after Apple asked for more information)
+    for x in subs:
+        st_ = x["attributes"].get("state")
+        it = must("GET", f"/v1/reviewSubmissions/{x['id']}/items?include=appStoreVersion", what="submission items")
+        has = any(((i.get("relationships") or {}).get("appStoreVersion") or {}).get("data", {}) and
+                  i["relationships"]["appStoreVersion"]["data"]["id"] == vid for i in it.get("data", []))
+        if not has:
+            continue
+        if st_ in ("WAITING_FOR_REVIEW", "IN_REVIEW"):
+            print(f"::notice title=Already with Apple::Version {APP_VERSION} is {st_} (submission {x['id'][:8]}), now with build {build_num}.")
+            print(f"\nAlready submitted ({st_}). Version {APP_VERSION} build {build_num}.")
+            return
+        if st_ in ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES"):
+            st, data = call("PATCH", f"/v1/reviewSubmissions/{x['id']}", {"data": {"type": "reviewSubmissions", "id": x["id"], "attributes": {"submitted": True}}})
+            if st >= 300:
+                report(st, data, f"resubmit {st_.lower()} submission")
+                sys.exit(1)
+            print(f"::notice title=Submitted::Version {APP_VERSION} build {build_num} sent to App Review (submission {x['id'][:8]} was {st_}).")
+            print(f"\nSubmitted for App Review. Version {APP_VERSION} build {build_num}.")
+            return
+    # otherwise: an empty open submission we can use, or a new one
+    open_ = [x for x in subs if x["attributes"].get("state") == "READY_FOR_REVIEW"]
+    if open_:
+        sid = open_[0]["id"]
     else:
         sid = must("POST", "/v1/reviewSubmissions", {"data": {"type": "reviewSubmissions",
                    "attributes": {"platform": "IOS"},
@@ -172,6 +196,7 @@ def submit(build_num):
 
     must("PATCH", f"/v1/reviewSubmissions/{sid}", {"data": {"type": "reviewSubmissions", "id": sid,
          "attributes": {"submitted": True}}}, what="submit for review")
+    print(f"::notice title=Submitted::Version {APP_VERSION} build {build_num} sent to App Review.")
     print(f"\nSubmitted for App Review. Version {APP_VERSION} build {build_num}.")
 
 
