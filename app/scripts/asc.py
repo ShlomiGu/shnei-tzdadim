@@ -175,13 +175,23 @@ def submit(build_num):
                     if not yi.get("data"):
                         call("PATCH", f"/v1/reviewSubmissions/{y['id']}", {"data": {"type": "reviewSubmissions", "id": y["id"], "attributes": {"canceled": True}}})
                         print(f"::notice title=Draft removed::empty submission {y['id'][:8]}")
-            # right after a new build is attached Apple can answer "not ready yet" for a while: keep trying for 20 minutes
-            for attempt in range(21):
+            # after "Information Needed" every item of the submission has to be marked resolved before it can go back
+            for i in it.get("data", []):
+                ist = (i.get("attributes") or {}).get("state")
+                print(f"::notice title=item {i['id'][:8]}::{ist}")
+                if st_ == "UNRESOLVED_ISSUES" and ist not in ("ACCEPTED", "APPROVED", "READY_FOR_REVIEW"):
+                    rs, rd = call("PATCH", f"/v1/reviewSubmissionItems/{i['id']}", {"data": {"type": "reviewSubmissionItems", "id": i["id"], "attributes": {"resolved": True}}})
+                    if rs >= 300:
+                        report(rs, rd, "mark item resolved")
+                    else:
+                        print(f"::notice title=Resolved::item {i['id'][:8]} ({ist} -> {(rd.get('data') or {}).get('attributes', {}).get('state')})")
+            # right after a new build is attached Apple can answer "not ready yet" for a while: keep trying for 5 minutes
+            for attempt in range(6):
                 st, data = call("PATCH", f"/v1/reviewSubmissions/{x['id']}", {"data": {"type": "reviewSubmissions", "id": x["id"], "attributes": {"submitted": True}}})
                 if st < 300:
                     break
                 text = json.dumps(data)
-                if "not ready to be submitted" in text and attempt < 20:
+                if "not ready to be submitted" in text and attempt < 5:
                     print(f"  not ready yet, trying again in a minute ({attempt + 1})", flush=True)
                     time.sleep(60)
                     continue
