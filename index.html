@@ -2,6 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
+<meta name="apple-itunes-app" content="app-id=6830552852">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>שני צדדים</title>
 <meta name="description" content="אפליקציית יום החתונה לחבורת החתן וחבורת הכלה: אלבומים נפרדים, טיזרים, חשיפה בחופה, לו״ז ומשימות.">
@@ -467,6 +468,7 @@ button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .docpage-b dd{margin:2px 0 0}
 .docpage-b a{color:var(--gold-ink);font-weight:600}
 .docpage-b .mail-btn{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;padding:13px 16px;border-radius:999px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:600}
+.jn-paste{display:inline-flex;align-items:center;gap:6px;align-self:center;margin-top:-2px}
 .doc-links{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;color:var(--muted)}
 button.link{background:none;border:0;padding:0;font-family:inherit;line-height:inherit;cursor:pointer}
 .songs{position:fixed;inset:0;z-index:58;background:var(--bg);display:flex;flex-direction:column;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 10px) max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(16px,env(safe-area-inset-left,0px));animation:up .25s}
@@ -735,8 +737,43 @@ const localDate = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1
 const SITE_URL = "https://shlomigu.github.io/shnei-tzdadim/";
 const IS_NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 // invite links go through a small page that gives WhatsApp the couple photo, then opens the app (invite/ in the repo)
-const INVITE_BASE = "";
+/* ============ links that open the app ============ */
+// shnei-tzdadim.netlify.app/j/CODE opens the app when it's installed (Universal Links) and otherwise offers the App Store
+// or the web app. Until that site answers, links point at the web app with ?code=. The app checks by itself and switches.
+const LINK_HOST = "https://shnei-tzdadim.netlify.app";
+let INVITE_BASE = store.get("invite.base", "");
+async function checkInviteBase() {
+  if (Date.now() - store.get("invite.chk", 0) < (INVITE_BASE ? 864e5 : 3 * 36e5)) return;
+  try {
+    const j = await fetch(LINK_HOST + "/.well-known/apple-app-site-association", { cache: "no-store" }).then(r => r.ok ? r.json() : null);
+    if (j && j.applinks) { INVITE_BASE = LINK_HOST; store.set("invite.base", LINK_HOST); }
+    store.set("invite.chk", Date.now());
+  } catch { /* offline or not live yet: keep the ?code= links */ }
+}
 const inviteUrl = code => INVITE_BASE ? `${INVITE_BASE}/j/${code}` : `${IS_NATIVE ? SITE_URL : location.origin + location.pathname}?code=${code}`;
+// a join code out of anything: https://…/j/ABC123, shneitzdadim://j/ABC123, ?code=ABC123, "ABC-123"
+function codeFrom(text) {
+  const t = String(text || "").trim();
+  let c = "";
+  try {
+    const u = new URL(t);
+    if (u.protocol === "shneitzdadim:") c = (u.host === "j" ? u.pathname : u.pathname.replace(/^\/*j/, ""));
+    else c = (u.pathname.match(/\/j\/([A-Za-z0-9-]+)/) || [])[1] || u.searchParams.get("code") || "";
+  } catch { c = (t.match(/\b([A-Za-z0-9]{3})-?([A-Za-z0-9]{3})\b/) || []).slice(1).join(""); }
+  c = c.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return c.length === 6 ? c : "";
+}
+const CapApp = () => (IS_NATIVE && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) || null;
+let lastLink = { c: "", t: 0 };
+function openCode(c) {
+  if (!c || (lastLink.c === c && Date.now() - lastLink.t < 4000)) return;
+  lastLink = { c, t: Date.now() };
+  if (!S.token || !S.st) { closeSheet(); renderJoin(c); return; }
+  const w = W();
+  if ([w.my_code, w.guest_code, w.other_code].includes(c)) { toast("אתם כבר בחתונה הזאת", "check"); return; }
+  toast("אתם מחוברים לחתונה אחרת. כדי להצטרף עם הקוד הזה, צאו מההגדרות", "user");
+}
+if (CapApp()) CapApp().addListener("appUrlOpen", e => openCode(codeFrom(e && e.url)));
 
 /* ============ rings ============ */
 function ringsSvg(p) {
@@ -2925,6 +2962,7 @@ function renderJoin(prefill = "") {
     <div><h1 class="big-title" style="text-align:start">הצטרפות</h1><p class="muted" style="margin-top:6px">הקלידו את הקוד שקיבלתם ממישהו בחבורה. הקוד קובע לאיזה צד תצטרפו.</p></div>
     <form class="stack" id="join-form" autocomplete="off">
       <input class="code-in" id="jn-code" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="7" placeholder="ABC123" aria-label="קוד הצטרפות" value="${esc(prefill)}">
+      ${navigator.clipboard && navigator.clipboard.readText ? `<button type="button" class="link small jn-paste" id="jn-paste">${ic("copy", 15)}הדבקת קוד או קישור</button>` : ""}
       <div id="jn-info"></div>
       <div id="jn-rest" class="stack" hidden>
         <div class="field"><label for="jn-name">איך קוראים לכם</label><input class="input" id="jn-name" maxlength="30" autocomplete="given-name" placeholder="השם שיופיע לחברים"></div>
@@ -2958,6 +2996,13 @@ function renderJoin(prefill = "") {
     catch (e) { toast(ERR[e.code] || "בדיקת הקוד נכשלה", "x"); }
   };
   input.addEventListener("input", () => { const raw = input.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); input.value = raw.length > 3 ? raw.slice(0, 3) + "-" + raw.slice(3) : raw; check(); });
+  const paste = $("#jn-paste");
+  if (paste) paste.onclick = async () => {
+    let t = ""; try { t = await navigator.clipboard.readText(); } catch { /* not allowed */ }
+    const c = codeFrom(t);
+    if (!c) { toast("לא מצאנו קוד בהעתקה. הקלידו אותו", "x"); input.focus(); return; }
+    input.value = c; input.dispatchEvent(new Event("input"));
+  };
   $$("[data-role]").forEach(b => b.onclick = () => { role = b.dataset.role; $$("[data-role]").forEach(x => x.setAttribute("aria-pressed", x.dataset.role === role)); });
   $("#join-form").addEventListener("submit", async e => {
     e.preventDefault(); if (!info) return;
@@ -3998,7 +4043,9 @@ window.addEventListener("hashchange", () => {
 
 /* ============ boot ============ */
 (async function boot() {
-  const qCode = new URLSearchParams(location.search).get("code");
+  let qCode = new URLSearchParams(location.search).get("code");
+  if (!qCode && CapApp()) { try { const l = await CapApp().getLaunchUrl(); qCode = l && l.url ? codeFrom(l.url) : ""; if (qCode) lastLink = { c: qCode, t: Date.now() }; } catch { /* no launch link */ } }
+  checkInviteBase();
   const h = location.hash.slice(1); if (VIEWS.includes(h)) S.view = h;
   if (S.token) {
     await refresh();

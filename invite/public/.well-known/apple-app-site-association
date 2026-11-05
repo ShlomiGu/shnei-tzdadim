@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["W2D8369KKL.com.shneitzdadim.app"],
+        "components": [{ "/": "/j/*", "comment": "invite links open the app" }],
+        "appID": "W2D8369KKL.com.shneitzdadim.app",
+        "paths": ["/j/*"]
+      }
+    ]
+  }
+}

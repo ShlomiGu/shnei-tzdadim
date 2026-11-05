@@ -83,6 +83,7 @@ jobs:
           echo "::notice title=Team ID::$TEAM"
           echo "TEAM_ID=$TEAM" >> $GITHUB_ENV
           python3 scripts/asc.py capability PUSH_NOTIFICATIONS || true
+          python3 scripts/asc.py capability ASSOCIATED_DOMAINS || true
 
       - name: Archive
         if: env.ONLY == ''

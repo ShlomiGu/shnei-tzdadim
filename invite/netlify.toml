@@ -1,4 +1,18 @@
-# Invite links with a real preview (couple photo, names, side).
-# GitHub Pages is static, so this tiny Netlify site answers /j/CODE with the right tags and sends people on to the app.
+# Invite links: shnei-tzdadim.netlify.app/j/CODE
+# - with the app installed, the link opens the app (Universal Links: .well-known/apple-app-site-association)
+# - without it, a small page offers the App Store or the web app, and shows the code to paste after installing
+# - link previews (WhatsApp etc.) get the couple photo, names and side from the og tags
 [build]
   publish = "public"
+
+[[headers]]
+  for = "/.well-known/apple-app-site-association"
+  [headers.values]
+    Content-Type = "application/json"
+    Cache-Control = "public, max-age=3600"
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "/.well-known/assetlinks.json"
+  [headers.values]
+    Content-Type = "application/json"
