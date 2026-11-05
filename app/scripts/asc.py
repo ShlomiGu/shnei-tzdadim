@@ -168,8 +168,23 @@ def submit(build_num):
             print(f"\nAlready submitted ({st_}). Version {APP_VERSION} build {build_num}.")
             return
         if st_ in ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES"):
-            st, data = call("PATCH", f"/v1/reviewSubmissions/{x['id']}", {"data": {"type": "reviewSubmissions", "id": x["id"], "attributes": {"submitted": True}}})
-            if st >= 300:
+            # a draft submission left empty by an earlier attempt would only confuse the page in App Store Connect
+            for y in subs:
+                if y["id"] != x["id"] and y["attributes"].get("state") == "READY_FOR_REVIEW":
+                    yi = must("GET", f"/v1/reviewSubmissions/{y['id']}/items", what="draft items")
+                    if not yi.get("data"):
+                        call("PATCH", f"/v1/reviewSubmissions/{y['id']}", {"data": {"type": "reviewSubmissions", "id": y["id"], "attributes": {"canceled": True}}})
+                        print(f"::notice title=Draft removed::empty submission {y['id'][:8]}")
+            # right after a new build is attached Apple can answer "not ready yet" for a while: keep trying for 20 minutes
+            for attempt in range(21):
+                st, data = call("PATCH", f"/v1/reviewSubmissions/{x['id']}", {"data": {"type": "reviewSubmissions", "id": x["id"], "attributes": {"submitted": True}}})
+                if st < 300:
+                    break
+                text = json.dumps(data)
+                if "not ready to be submitted" in text and attempt < 20:
+                    print(f"  not ready yet, trying again in a minute ({attempt + 1})", flush=True)
+                    time.sleep(60)
+                    continue
                 report(st, data, f"resubmit {st_.lower()} submission")
                 sys.exit(1)
             print(f"::notice title=Submitted::Version {APP_VERSION} build {build_num} sent to App Review (submission {x['id'][:8]} was {st_}).")
