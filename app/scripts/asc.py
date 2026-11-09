@@ -102,6 +102,20 @@ def capability(kind):
     print(f"{kind}: turned on")
 
 
+def status():
+    aid = app_id()
+    d = must("GET", f"/v1/apps/{aid}/appStoreVersions?filter[platform]=IOS&limit=5&include=build", what="versions")
+    builds = {b["id"]: b["attributes"].get("version") for b in d.get("included", []) if b["type"] == "builds"}
+    for v in d["data"]:
+        a = v["attributes"]
+        bid = ((v.get("relationships") or {}).get("build") or {}).get("data") or {}
+        print(f"::notice title=Version {a['versionString']}::{a.get('appStoreState')} | {a.get('appVersionState')} | build {builds.get(bid.get('id'), '-')}")
+    s = must("GET", f"/v1/reviewSubmissions?filter[app]={aid}&filter[platform]=IOS&limit=10", what="submissions")
+    for x in s["data"]:
+        a = x["attributes"]
+        print(f"::notice title=Submission {x['id'][:8]}::{a.get('state')} | submitted {a.get('submittedDate')}")
+
+
 def submit(build_num):
     aid = app_id()
     if build_num == "latest":
@@ -229,6 +243,8 @@ if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "team":
         team()
+    elif cmd == "status":
+        status()
     elif cmd == "capability":
         capability(sys.argv[2])
     elif cmd == "submit":
