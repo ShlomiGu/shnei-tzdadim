@@ -1,0 +1,28 @@
+project_id = "yexzrxygjzzgsweiaqcm"
+
+[functions.ai-plan]
+verify_jwt = true
+
+[functions.invite]
+verify_jwt = false
+
+[functions.purge]
+verify_jwt = true
+
+[functions.push-send]
+verify_jwt = true
+
+[functions.push-sink]
+verify_jwt = true
+
+[functions.selftest]
+verify_jwt = true
+
+[functions.selftest-cover]
+verify_jwt = true
+
+[functions.selftest-guests]
+verify_jwt = true
+
+[functions.selftest-moderation]
+verify_jwt = true
