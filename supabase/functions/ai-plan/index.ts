@@ -9,7 +9,8 @@ const SB = Deno.env.get("SUPABASE_URL")!;
 const SR = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANTHROPIC = Deno.env.get("ANTHROPIC_API_KEY");
 const OPENAI = Deno.env.get("OPENAI_API_KEY");
-const MODEL = Deno.env.get("AI_MODEL") || "claude-sonnet-5-5";
+// Haiku is fast and about 20x cheaper than Sonnet, and plenty for a short structured edit. AI_MODEL overrides it.
+const MODEL = Deno.env.get("AI_MODEL") || "claude-haiku-5-5";
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4.1-mini";
 
 const json = (b: unknown, s = 200) =>
@@ -23,19 +24,25 @@ const hhmm = (iso: string) => {
 
 async function callModel(system: string, user: string, tool: { name: string; description: string; input_schema: unknown }) {
   if (ANTHROPIC) {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    const ask = (forced: boolean) => fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": ANTHROPIC, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
-        model: MODEL, max_tokens: 6000, system,
-        tools: [tool], tool_choice: { type: "tool", name: tool.name },
+        model: MODEL, max_tokens: 8000,
+        system: forced ? system : system + `\nAlways answer by calling the ${tool.name} tool, never in plain text.`,
+        tools: [tool], tool_choice: forced ? { type: "tool", name: tool.name } : { type: "auto" },
         messages: [{ role: "user", content: user }],
       }),
     });
-    const d = await r.json();
+    let r = await ask(true);
+    let d = await r.json();
+    // some models (Sonnet 5.5, Opus 5.5) refuse a forced tool choice; ask again and let the prompt pick the tool
+    if (r.status === 400 && JSON.stringify(d).includes("tool_choice")) { r = await ask(false); d = await r.json(); }
     if (!r.ok) throw new Error("anthropic " + r.status + " " + JSON.stringify(d).slice(0, 300));
+    console.log(JSON.stringify({ ai: "usage", model: d.model, stop: d.stop_reason, in: d.usage?.input_tokens, out: d.usage?.output_tokens }));
+    if (d.stop_reason === "refusal") throw new Error("refusal " + JSON.stringify(d.stop_details || {}).slice(0, 200));
     const tu = (d.content || []).find((c: { type: string }) => c.type === "tool_use");
-    if (!tu) throw new Error("no tool_use");
+    if (!tu) throw new Error("no tool_use, stop " + d.stop_reason);
     return tu.input;
   }
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
