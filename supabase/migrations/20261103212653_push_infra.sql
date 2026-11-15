@@ -1,6 +1,6 @@
 insert into public.app_secrets(name,value) values
   ('vapid_public','BMm4tqW2sO8vdjX9e2ZcNgbQzBuUQ5YTXUH2e7MpCeCn2DCmlm5ixTaFTgxGDphehd4QqLjXJ7jYvHBV7tG7UWc'),
-  ('vapid_private','_CBPCTK5cDnzXhouArGLLZY5AzdA3s1EuQrsOrCG1i0'),
+  ('vapid_private','<redacted: set in the database, never commit it>'),
   ('vapid_subject','https://shlomigu.github.io/shnei-tzdadim/'),
   ('push_key', encode(extensions.gen_random_bytes(24),'hex'))
 on conflict (name) do nothing;
