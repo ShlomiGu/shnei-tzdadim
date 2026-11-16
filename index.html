@@ -623,9 +623,32 @@ async function rpc(fn, args = {}) {
   setOffline(false);
   const txt = await res.text();
   let data = null; try { data = txt ? JSON.parse(txt) : null; } catch {}
-  if (!res.ok) throw new ApiError((data && data.message) || ("http_" + res.status));
+  if (!res.ok) {
+    if (res.status >= 500) reportErr("rpc " + fn + " " + res.status, { msg: data && data.message });
+    throw new ApiError((data && data.message) || ("http_" + res.status));
+  }
   return data;
 }
+/* crash reports for the owner's monitor page: a few per visit, never anything personal */
+const REPORTED = new Set();
+function reportErr(msg, extra) {
+  try {
+    msg = String(msg || "").slice(0, 300);
+    if (!msg || REPORTED.size >= 5 || REPORTED.has(msg)) return;
+    REPORTED.add(msg);
+    const detail = { ...(extra || {}), page: location.hash.slice(0, 40), app: !!window.Capacitor, ua: navigator.userAgent.slice(0, 160) };
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/log_client_error`, { method: "POST", keepalive: true, headers: { ...AUTH, "Content-Type": "application/json" }, body: JSON.stringify({ p_msg: msg, p_detail: detail }) }).catch(() => {});
+  } catch {}
+}
+window.addEventListener("error", e => {
+  if (!e.error && !e.message) return; // a broken image or video, not a crash
+  reportErr(e.message, { at: `${String(e.filename || "").split("/").pop()}:${e.lineno}:${e.colno}`, stack: String(e.error && e.error.stack || "").slice(0, 600) });
+});
+window.addEventListener("unhandledrejection", e => {
+  const r = e.reason;
+  if (r instanceof ApiError && r.code === "network") return;
+  reportErr("unhandled: " + (r && (r.code || r.message) || r), { stack: String(r && r.stack || "").slice(0, 600) });
+});
 const STORAGE_TUS = SUPABASE_URL.replace(".supabase.co", ".storage.supabase.co") + "/storage/v1/upload/resumable";
 function putFile(path, blob, type, onProg, tries = 3) {
   return new Promise((resolve, reject) => {
@@ -2634,7 +2657,7 @@ function aiCard(kind) {
 }
 const AI_ERR = {
   ai_not_configured: "ה-AI עוד לא מחובר לשרת. אפשר בינתיים לערוך ידנית",
-  rate_limited: "הגעתם למכסת הבקשות לשעה. נסו שוב בעוד כמה דקות",
+  rate_limited: "הגעתם למכסת הבקשות. נסו שוב מאוחר יותר",
   bad_input: "הבקשה ארוכה מדי. נסו לקצר",
   network: ERR.network
 };
@@ -2651,6 +2674,7 @@ async function aiGo(kind) {
     aiPreview(kind, data);
   } catch (e) {
     if (e.code === "bad_token") return logout();
+    if (e.code === "off_topic") return toast(kind === "sched" ? "אפשר לבקש כאן רק שינויים בלו״ז של היום" : "אפשר לבקש כאן רק שינויים במשימות", "sparkle");
     toast(AI_ERR[e.code] || "ה-AI לא הצליח הפעם. נסו לנסח אחרת", "x");
   } finally { S.aiBusy[kind] = false; render(); }
 }

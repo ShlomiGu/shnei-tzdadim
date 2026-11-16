@@ -37,6 +37,9 @@ Deno.serve(async (req) => {
     };
     const has = async (t: string, id: string) => (await state(t)).photos.some((p: any) => p.id === id);
     const meA = (await state(tA)).me.id, meC = (await state(tC)).me.id;
+    // reports only count from people who joined at least 30 minutes ago (so a fresh account cannot hide photos)
+    await fetch(`${SB}/rest/v1/members?wedding_id=eq.${wid}`, { method: "PATCH", headers: { ...HS, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ created_at: new Date(Date.now() - 3600e3).toISOString() }) });
     const P1 = await add(tC, "P1"), P2 = await add(tC, "P2"), P3 = await add(tC, "P3"), PA = await add(tA, "PA");
     check("you cannot report your own photo", (await rpc("report_content", { p_token: tC, p_kind: "photo", p_id: P1.id, p_reason: "x" })).status >= 400);
     check("an escort can report a photo", (await rpc("report_content", { p_token: tA, p_kind: "photo", p_id: P1.id, p_reason: "offensive" })).ok);

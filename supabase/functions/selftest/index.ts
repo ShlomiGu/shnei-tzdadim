@@ -48,7 +48,8 @@ Deno.serve(async (req) => {
     check("bride code puts you on the bride side", sB.me.team === "bride" && (await state(tG2)).me.team === "groom");
     check("groom side stops seeing the bride code once she joined", (await state(tG)).wedding.other_code == null);
     check("bride side sees only its own code", sB.wedding.my_code === codeB && sB.wedding.other_code == null);
-    check("wrong code is refused", (await rpc("join_wedding", { p_code: "ZZZZZZ", p_name: "x", p_role: "escort" })).status >= 400);
+    const wc = await rpc("join_wedding", { p_code: "ZZZZZZ", p_name: "x", p_role: "escort" });
+    check("wrong code is refused", (wc.status >= 400 || wc.data?.error === "bad_code") && !wc.data?.token, JSON.stringify(wc));
     check("random token is refused", (await rpc("get_state", { p_token: crypto.randomUUID() })).status >= 400);
 
     // ---- uploads ----
