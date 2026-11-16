@@ -2,6 +2,7 @@
 //   dashboard - one snapshot (usage, AI, errors, reports, cron, recent health checks)
 //   check     - runs the health checks and stores the result; deep=true also runs the end-to-end self tests and a real AI call
 //   status    - the latest stored check, for the GitHub alert workflow
+//   level     - public, no key: storage MB and ok/near/upgrade only (for the daily storage alert)
 //   report    - the owner's decision on a reported photo/teaser: hide it for everyone, or keep it and close the report
 const SB = Deno.env.get("SUPABASE_URL")!;
 const SR = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -128,6 +129,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method" }, 405);
   let body: any = {}; try { body = await req.json(); } catch { /* */ }
+  // public: only how full the storage is (no other data), for the owner's daily storage alert
+  if (body.action === "level") {
+    try {
+      const st = await stats();
+      const mb = Math.round(st.storage.bytes / 1048576), limit = Math.round(st.storage.limit_bytes / 1048576);
+      return json({ mb, limit_mb: limit, upgrade_at_mb: 800, level: mb >= 800 ? "upgrade" : mb >= 700 ? "near" : "ok" });
+    } catch { return json({ error: "failed" }, 500); }
+  }
   const s = await secrets(["monitor_key"]);
   if (!same(String(body.key || ""), s.monitor_key || "")) {
     await new Promise((r) => setTimeout(r, 800)); // slow down guessing
