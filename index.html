@@ -3887,7 +3887,7 @@ function settingsSheet(focus) {
       <section class="card stack">
         <h3 class="card-t">אני</h3>
         <div class="field"><label for="st-nick">השם שלי</label><input class="input" id="st-nick" maxlength="30" value="${esc(me.name)}"></div>
-        <div class="seg" role="group" aria-label="תפקיד"><button type="button" data-rr="escort" aria-pressed="${role === "escort"}">מלווה</button><button type="button" data-rr="couple" aria-pressed="${role === "couple"}">אני ${esc(coupleName(mySide()))}</button></div>
+        ${me.role === "couple" ? `<p class="small muted">נכנסת בתור ${esc(coupleName(mySide()))}. את התפקיד הזה אי אפשר להחליף, כדי שההפתעות של המלווים יישארו הפתעה.</p>` : `<div class="seg" role="group" aria-label="תפקיד"><button type="button" data-rr="escort" aria-pressed="${role === "escort"}">מלווה</button><button type="button" data-rr="couple" aria-pressed="${role === "couple"}">אני ${esc(coupleName(mySide()))}</button></div>`}
         <button class="btn ghost block" id="st-me">שמירה</button>
         <p class="small muted">את הצד אי אפשר להחליף. מי שנכנס בטעות לצד הלא נכון, יוצא ומצטרף מחדש עם הקוד הנכון.</p>
         <button class="btn danger block" id="st-out">יציאה מהמכשיר הזה</button>
