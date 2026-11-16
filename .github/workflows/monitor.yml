@@ -1,0 +1,53 @@
+name: Monitor
+
+# Every hour: reads the latest health check that Supabase ran (pg_cron -> monitor function).
+# The run fails when something is wrong, and GitHub emails you about failed runs.
+# Needs the repository secret MONITOR_KEY (the value of monitor_key in app_secrets).
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      deep:
+        description: "Run the full end-to-end check now"
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check
+        env:
+          KEY: ${{ secrets.MONITOR_KEY }}
+          DEEP: ${{ inputs.deep && 'true' || 'false' }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::warning::MONITOR_KEY is not set in the repository secrets, so there are no alerts yet."
+            exit 0
+          fi
+          URL=https://yexzrxygjzzgsweiaqcm.supabase.co/functions/v1/monitor
+          ANON=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlleHpyeHlnanp6Z3N3ZWlhcWNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2ODk0NzksImV4cCI6MjEwOTI2NTQ3OX0.oxbOFBA4XqjFJ4-WsBSNyh-60_4Rm8Me8CVxzpPKrJY
+          if [ "$DEEP" = "true" ]; then BODY="{\"key\":\"$KEY\",\"action\":\"check\",\"deep\":true}"; else BODY="{\"key\":\"$KEY\",\"action\":\"status\"}"; fi
+          OUT=$(curl -sS --max-time 330 -H "apikey: $ANON" -H "Authorization: Bearer $ANON" -H "Content-Type: application/json" -d "$BODY" "$URL" || echo '{"error":"monitor unreachable"}')
+          echo "$OUT" | python3 -c '
+          import json, os, sys
+          d = json.load(sys.stdin)
+          run = d.get("last") if "last" in d else d
+          age = d.get("age_min", 0)
+          problems = []
+          if d.get("error"): problems.append("monitor: " + str(d["error"]))
+          elif not run: problems.append("no health check has run yet")
+          else:
+              if not run.get("ok"): problems += run.get("problems") or ["check failed"]
+              if age is not None and age > 150: problems.append(f"the hourly check has not run for {age} minutes (pg_cron?)")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("## " + ("✅ הכל תקין" if not problems else "❌ יש בעיות") + "\n\n")
+              for p in problems: f.write(f"- {p}\n")
+              f.write("\nhttps://shlomigu.github.io/shnei-tzdadim/monitor.html\n")
+          for p in problems: print("::error::" + p)
+          sys.exit(1 if problems else 0)
+          '

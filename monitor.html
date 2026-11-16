@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>ניטור · שני צדדים</title>
+<style>
+:root { --bg:#f6f4f1; --card:#fff; --ink:#1d1b19; --mut:#77716a; --line:#e7e2db; --ok:#1f8a4c; --okb:#e5f4ea; --bad:#c23b31; --badb:#fbe9e7; --warn:#a86a00; --warnb:#fdf2dc; --acc:#6b4fd8; }
+@media (prefers-color-scheme: dark) { :root { --bg:#141312; --card:#1e1c1b; --ink:#f1ede8; --mut:#a49d95; --line:#2f2c29; --okb:#16301f; --badb:#3a1c19; --warnb:#3a2c10; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, -apple-system, "Segoe UI", Arial, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+h1 { font-size: 22px; margin: 0 0 2px; } h2 { font-size: 15px; margin: 0 0 10px; color: var(--mut); font-weight: 600; }
+.top { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.muted { color: var(--mut); } .small { font-size: 13px; }
+.grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom: 12px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px; overflow-wrap:anywhere; }
+.kpi .n { font-size: 26px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; } .kpi .l { color: var(--mut); font-size: 13px; }
+.banner { border-radius:14px; padding:14px 16px; margin-bottom:12px; font-weight:600; }
+.banner.ok { background: var(--okb); color: var(--ok); } .banner.bad { background: var(--badb); color: var(--bad); } .banner.warn { background: var(--warnb); color: var(--warn); }
+.banner ul { margin: 6px 0 0; padding-inline-start: 20px; font-weight: 500; }
+button, input { font: inherit; }
+button { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; padding: 8px 14px; cursor: pointer; }
+button.pri { background: var(--acc); border-color: var(--acc); color: #fff; }
+button:disabled { opacity: .55; cursor: default; }
+input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); direction: ltr; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; } td, th { text-align: start; padding: 6px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+th { color: var(--mut); font-weight: 600; border-top: 0; }
+.bar { height: 8px; border-radius: 6px; background: var(--line); overflow: hidden; } .bar > i { display: block; height: 100%; background: var(--acc); }
+.dots { display: flex; gap: 3px; flex-wrap: wrap; direction: ltr; } .dots i { width: 12px; height: 12px; border-radius: 3px; background: var(--ok); } .dots i.bad { background: var(--bad); } .dots i.deep { outline: 2px solid var(--acc); outline-offset: 1px; }
+.row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.two { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; } @media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
+code { font-size: 12px; direction: ltr; unicode-bidi: embed; }
+.hide { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div><h1>ניטור המערכת</h1><div class="muted small" id="when">—</div></div>
+    <div class="row" id="actions" hidden>
+      <button id="refresh">רענון</button>
+      <button id="quick">בדיקה מהירה</button>
+      <button class="pri" id="deep">בדיקה מלאה (כדקה)</button>
+      <button id="logout" title="שכחו את המפתח במכשיר הזה">יציאה</button>
+    </div>
+  </div>
+
+  <section class="card" id="login" hidden>
+    <h2>כניסה</h2>
+    <p class="small muted">העמוד פתוח רק עם מפתח הניטור. הוא נשמר רק בדפדפן הזה. אפשר לראות אותו ב-Supabase, ב-SQL Editor:<br><code>select value from app_secrets where name = 'monitor_key';</code></p>
+    <form id="lf" class="row"><input id="key" type="password" autocomplete="off" placeholder="מפתח ניטור" style="flex:1;min-width:220px"><button class="pri">כניסה</button></form>
+    <p class="small" id="lerr" style="color:var(--bad)"></p>
+  </section>
+
+  <div id="app" hidden></div>
+</main>
+<script>
+const SB = "https://yexzrxygjzzgsweiaqcm.supabase.co";
+const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlleHpyeHlnanp6Z3N3ZWlhcWNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2ODk0NzksImV4cCI6MjEwOTI2NTQ3OX0.oxbOFBA4XqjFJ4-WsBSNyh-60_4Rm8Me8CVxzpPKrJY";
+// what Claude charges per million tokens (input, output)
+const PRICE = { haiku: [0.10, 0.50], sonnet: [2, 10], opus: [4, 20] };
+const $ = s => document.querySelector(s);
+const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = n => Number(n || 0).toLocaleString("he-IL");
+const ago = t => { if (!t) return "—"; const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? "עכשיו" : m < 60 ? `לפני ${m} דק׳` : m < 1440 ? `לפני ${Math.round(m / 60)} שע׳` : `לפני ${Math.round(m / 1440)} ימים`; };
+const time = t => new Date(t).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const mb = b => (b / 1048576).toLocaleString("he-IL", { maximumFractionDigits: 1 }) + " MB";
+let KEY = ""; try { KEY = localStorage.getItem("mon_key") || ""; } catch {}
+
+async function call(action, extra) {
+  const r = await fetch(`${SB}/functions/v1/monitor`, { method: "POST", headers: { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json" }, body: JSON.stringify({ key: KEY, action, ...(extra || {}) }) });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 403) { throw Object.assign(new Error("forbidden"), { auth: true }); }
+  if (!r.ok) throw new Error(d.detail || d.error || ("שגיאה " + r.status));
+  return d;
+}
+
+function cost(ai) {
+  const m = (ai.models || []).join(" ");
+  const p = /opus/.test(m) ? PRICE.opus : /sonnet/.test(m) ? PRICE.sonnet : PRICE.haiku;
+  return (ai.in_tok_7d * p[0] + ai.out_tok_7d * p[1]) / 1e6;
+}
+
+function render(d, lastCheck) {
+  const s = d.stats, c = d.config, ai = s.ai || {}, h = s.health || [];
+  const last = lastCheck || h[0];
+  const fresh = last && (Date.now() - new Date(last.at)) < 3 * 3600e3;
+  let banner;
+  if (!last) banner = `<div class="banner warn">עוד לא רצה אף בדיקה. לחצו על "בדיקה מלאה".</div>`;
+  else if (!last.ok) banner = `<div class="banner bad">יש בעיות (בדיקה ${last.deep ? "מלאה" : "מהירה"}, ${ago(last.at)})<ul>${(last.problems || []).map(p => `<li>${esc(p)}</li>`).join("")}</ul></div>`;
+  else if (!fresh) banner = `<div class="banner warn">הבדיקה האחרונה ישנה (${ago(last.at)}). ייתכן שהבדיקה המתוזמנת לא רצה.</div>`;
+  else banner = `<div class="banner ok">הכל תקין · בדיקה ${last.deep ? "מלאה" : "מהירה"} ${ago(last.at)}</div>`;
+  const used = s.storage.bytes / s.storage.limit_bytes;
+  const lastDeep = h.find(x => x.deep);
+  $("#app").innerHTML = `
+    ${banner}
+    <div class="grid">
+      <div class="card kpi"><div class="n">${num(s.weddings.total)}</div><div class="l">חתונות · ${num(s.weddings.new_7d)} חדשות השבוע</div></div>
+      <div class="card kpi"><div class="n">${num(s.weddings.today)}</div><div class="l">חתונות היום · ${num(s.weddings.next_30d)} בחודש הקרוב</div></div>
+      <div class="card kpi"><div class="n">${num(s.members.total)}</div><div class="l">משתתפים · ${num(s.members.new_24h)} ב-24 שע׳</div></div>
+      <div class="card kpi"><div class="n">${num(s.photos.total)}</div><div class="l">תמונות וסרטונים · ${num(s.photos.new_24h)} ב-24 שע׳</div></div>
+      <div class="card kpi"><div class="n">${num(s.events_24h)}</div><div class="l">שגיאות ב-24 שע׳</div></div>
+      <div class="card kpi"><div class="n">${num(s.reports_open)}</div><div class="l">דיווחים פתוחים</div></div>
+    </div>
+    <div class="two">
+      <section class="card">
+        <h2>AI</h2>
+        ${c.ai ? `<div class="small">מחובר · <code>${esc(c.ai_model)}</code></div>` : `<div class="small" style="color:var(--bad)">לא מחובר: חסר ANTHROPIC_API_KEY ב-Supabase</div>`}
+        <table style="margin-top:8px">
+          <tr><td>בקשות ב-24 שע׳ / 7 ימים</td><td>${num(ai.calls_24h)} / ${num(ai.calls_7d)}</td></tr>
+          <tr><td>שגיאות ב-24 שע׳</td><td>${num(ai.errors_24h)}</td></tr>
+          <tr><td>בקשות לא קשורות (7 ימים)</td><td>${num(ai.off_topic_7d)}</td></tr>
+          <tr><td>טוקנים (7 ימים)</td><td>${num(ai.in_tok_7d)} קלט · ${num(ai.out_tok_7d)} פלט</td></tr>
+          <tr><td>עלות משוערת (7 ימים)</td><td>$${cost(ai).toFixed(3)}</td></tr>
+          <tr><td>זמן תגובה ממוצע</td><td>${ai.avg_ms ? (ai.avg_ms / 1000).toFixed(1) + " שנ׳" : "—"}</td></tr>
+        </table>
+        ${(ai.last_errors || []).length ? `<div class="small muted" style="margin-top:8px">שגיאות אחרונות:</div>${ai.last_errors.map(e => `<div class="small"><code>${esc(time(e.at))}</code> ${esc(e.error)}</div>`).join("")}` : ""}
+      </section>
+      <section class="card">
+        <h2>תשתית</h2>
+        <div class="small">אחסון: ${mb(s.storage.bytes)} מתוך ${mb(s.storage.limit_bytes)} (${Math.round(used * 100)}%)</div>
+        <div class="bar" style="margin:6px 0 12px"><i style="width:${Math.min(100, used * 100).toFixed(1)}%;${used > .85 ? "background:var(--bad)" : ""}"></i></div>
+        <table>
+          <tr><td>מכשירים עם התראות</td><td>${num(s.push.devices)}</td></tr>
+          <tr><td>התראות שנשלחו ב-24 שע׳</td><td>${num(s.push.sent_24h)}</td></tr>
+          <tr><td>התראות לאייפון (APNs)</td><td>${c.apns ? "מוגדר" : "לא מוגדר"}</td></tr>
+          <tr><td>הרצות מתוזמנות שנכשלו (24 שע׳)</td><td>${num(s.cron_failed_24h)}</td></tr>
+          <tr><td>בדיקה מלאה אחרונה</td><td>${lastDeep ? `${lastDeep.ok ? "✓" : "✗"} ${ago(lastDeep.at)}` : "—"}</td></tr>
+          <tr><td>חלוקה לפי צד</td><td>${Object.entries(s.members.by_team || {}).map(([k, v]) => `${({ groom: "חתן", bride: "כלה", guest: "אורחים" })[k] || esc(k)}: ${num(v)}`).join(" · ")}</td></tr>
+        </table>
+      </section>
+    </div>
+    <section class="card">
+      <h2>היסטוריית בדיקות (48 אחרונות, מסגרת = בדיקה מלאה)</h2>
+      <div class="dots">${h.slice().reverse().map(x => `<i class="${x.ok ? "" : "bad"} ${x.deep ? "deep" : ""}" title="${esc(time(x.at))}${x.ok ? "" : " · " + esc((x.problems || []).join(" | "))}"></i>`).join("") || `<span class="small muted">אין עדיין</span>`}</div>
+      ${lastCheck && lastCheck.results ? `<details style="margin-top:10px"><summary class="small">פירוט הבדיקה שהרצתם עכשיו</summary><pre class="small" style="white-space:pre-wrap;direction:ltr">${esc(JSON.stringify(lastCheck.results, null, 1))}</pre></details>` : ""}
+    </section>
+    ${(s.cron || []).length ? `<section class="card"><h2>הרצות מתוזמנות שנכשלו</h2><table>${s.cron.map(x => `<tr><td><code>${esc(time(x.at))}</code></td><td>${esc(x.jobname)}</td><td>${esc(x.msg)}</td></tr>`).join("")}</table></section>` : ""}
+    ${(s.reports || []).length ? `<section class="card"><h2>דיווחים פתוחים</h2><table>${s.reports.map(x => `<tr><td><code>${esc(time(x.at))}</code></td><td>${esc(x.kind)}</td><td>${esc(x.reason)}</td></tr>`).join("")}</table></section>` : ""}
+    <section class="card">
+      <h2>שגיאות אחרונות (שרת ואפליקציה)</h2>
+      ${(s.events || []).length ? `<table><tr><th>מתי</th><th>מקור</th><th>הודעה</th></tr>${s.events.map(e => `<tr><td><code>${esc(time(e.at))}</code></td><td>${esc(e.source)}</td><td>${esc(e.msg)}${e.detail ? `<details><summary class="small muted">פרטים</summary><pre class="small" style="white-space:pre-wrap;direction:ltr">${esc(JSON.stringify(e.detail, null, 1))}</pre></details>` : ""}</td></tr>`).join("")}</table>` : `<div class="small muted">אין שגיאות 🎉</div>`}
+    </section>`;
+  $("#when").textContent = "עודכן " + new Date(s.at).toLocaleTimeString("he-IL");
+}
+
+let lastCheck = null;
+async function load() {
+  try {
+    const d = await call("dashboard");
+    $("#login").hidden = true; $("#app").hidden = false; $("#actions").hidden = false;
+    render(d, lastCheck);
+  } catch (e) {
+    if (e.auth) { try { localStorage.removeItem("mon_key"); } catch {} KEY = ""; showLogin("המפתח לא נכון"); }
+    else $("#when").textContent = "לא הצלחתי לטעון: " + e.message;
+  }
+}
+function showLogin(msg) { $("#login").hidden = false; $("#app").hidden = true; $("#actions").hidden = true; $("#lerr").textContent = msg || ""; }
+async function runCheck(deep, btn) {
+  const t = btn.textContent; btn.disabled = true; btn.textContent = "בודק…";
+  try { lastCheck = { ...(await call("check", { deep })), at: new Date().toISOString() }; await load(); }
+  catch (e) { alert("הבדיקה נכשלה: " + e.message); }
+  finally { btn.disabled = false; btn.textContent = t; }
+}
+$("#lf").onsubmit = e => { e.preventDefault(); KEY = $("#key").value.trim(); try { localStorage.setItem("mon_key", KEY); } catch {} load(); };
+$("#refresh").onclick = load;
+$("#quick").onclick = e => runCheck(false, e.target);
+$("#deep").onclick = e => runCheck(true, e.target);
+$("#logout").onclick = () => { try { localStorage.removeItem("mon_key"); } catch {} KEY = ""; showLogin(); };
+if (KEY) load(); else showLogin();
+setInterval(() => { if (KEY && !document.hidden) load(); }, 60000);
+</script>
+</body>
+</html>

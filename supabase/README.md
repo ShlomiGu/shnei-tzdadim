@@ -17,3 +17,10 @@ supabase functions deploy ai-plan --project-ref yexzrxygjzzgsweiaqcm
 ```
 שינויים במסד נתונים: קובץ חדש ב-`migrations/` ואז `supabase db push`.
 אחרי כל שינוי שנעשה ישירות בלוח הבקרה, כדאי לעדכן גם כאן כדי שהמאגר יישאר זהה למה שרץ.
+
+## ניטור (רק לבעלים)
+- עמוד: https://shlomigu.github.io/shnei-tzdadim/monitor.html (נפתח רק עם המפתח `monitor_key` מטבלת `app_secrets`).
+- הפונקציה `monitor` מחזירה תמונת מצב (`monitor_stats`), מריצה בדיקות (`check`, ועם `deep` גם את כל ה-selftest ובקשת AI אמיתית) ושומרת אותן ב-`health_runs`.
+- `pg_cron` מריץ בדיקה מהירה כל שעה (בדקה 41) ובדיקה מלאה כל לילה ב-04:41.
+- שגיאות מהאפליקציה נשמרות ב-`app_events` דרך `log_client_error` (עד 300 בשעה).
+- התראות במייל: `.github/workflows/monitor.yml` בודק כל שעה ונכשל כשיש בעיה. צריך להוסיף ב-GitHub סוד בשם `MONITOR_KEY`.

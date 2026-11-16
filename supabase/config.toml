@@ -26,3 +26,6 @@ verify_jwt = true
 
 [functions.selftest-moderation]
 verify_jwt = true
+
+[functions.monitor]
+verify_jwt = true
