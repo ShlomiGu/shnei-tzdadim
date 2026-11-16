@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import StoreKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -54,4 +55,145 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
     }
 
+}
+
+// MARK: - Bridge view controller (registers app-local plugins)
+
+// Set as the custom class of the root view controller in Main.storyboard.
+class MainViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(StorePlugin())
+    }
+}
+
+// MARK: - Store plugin (Apple In-App Purchase, StoreKit 2)
+// JS: window.Capacitor.Plugins.Store.{products, purchase, finish, unfinished}
+// Transactions are never finished here on purchase: the web app sends the JWS to the
+// pay-apple edge function and calls finish() only after the server has delivered it.
+
+@objc(StorePlugin)
+public class StorePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "StorePlugin"
+    public let jsName = "Store"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "products", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "finish", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "unfinished", returnType: CAPPluginReturnPromise)
+    ]
+
+    @objc func products(_ call: CAPPluginCall) {
+        let ids: [String] = (call.getArray("ids") ?? []).compactMap { $0 as? String }
+        if ids.isEmpty {
+            call.reject("ids must be a non-empty array of product ids")
+            return
+        }
+        Task {
+            do {
+                let list = try await Product.products(for: ids)
+                var out: [[String: Any]] = []
+                for p in list {
+                    out.append([
+                        "id": p.id,
+                        "title": p.displayName,
+                        "description": p.description,
+                        "price": p.displayPrice,
+                        "priceValue": NSDecimalNumber(decimal: p.price).doubleValue
+                    ])
+                }
+                call.resolve(["products": out])
+            } catch {
+                call.reject("could not load products: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    @objc func purchase(_ call: CAPPluginCall) {
+        guard let id = call.getString("id"), !id.isEmpty else {
+            call.reject("id is required")
+            return
+        }
+        guard let tokenStr = call.getString("accountToken"), let token = UUID(uuidString: tokenStr) else {
+            call.reject("accountToken must be a UUID string")
+            return
+        }
+        Task {
+            do {
+                let found = try await Product.products(for: [id])
+                guard let product = found.first else {
+                    call.reject("product not found: \(id)")
+                    return
+                }
+                let result = try await product.purchase(options: [.appAccountToken(token)])
+                switch result {
+                case .success(let verification):
+                    var txnId: UInt64 = 0
+                    switch verification {
+                    case .verified(let t):
+                        txnId = t.id
+                    case .unverified(let t, _):
+                        txnId = t.id
+                    }
+                    call.resolve([
+                        "status": "purchased",
+                        "jws": verification.jwsRepresentation,
+                        "transactionId": String(txnId)
+                    ])
+                case .userCancelled:
+                    call.resolve(["status": "cancelled"])
+                case .pending:
+                    call.resolve(["status": "pending"])
+                @unknown default:
+                    call.reject("unknown purchase result")
+                }
+            } catch {
+                call.reject("purchase failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    @objc func finish(_ call: CAPPluginCall) {
+        guard let idStr = call.getString("transactionId"), let wanted = UInt64(idStr) else {
+            call.reject("transactionId must be a numeric string")
+            return
+        }
+        Task {
+            for await verification in Transaction.unfinished {
+                let t: Transaction
+                switch verification {
+                case .verified(let v):
+                    t = v
+                case .unverified(let v, _):
+                    t = v
+                }
+                if t.id == wanted {
+                    await t.finish()
+                    call.resolve(["finished": true])
+                    return
+                }
+            }
+            call.resolve(["finished": false])
+        }
+    }
+
+    @objc func unfinished(_ call: CAPPluginCall) {
+        Task {
+            var items: [[String: Any]] = []
+            for await verification in Transaction.unfinished {
+                let t: Transaction
+                switch verification {
+                case .verified(let v):
+                    t = v
+                case .unverified(let v, _):
+                    t = v
+                }
+                items.append([
+                    "jws": verification.jwsRepresentation,
+                    "transactionId": String(t.id),
+                    "productId": t.productID
+                ])
+            }
+            call.resolve(["items": items])
+        }
+    }
 }

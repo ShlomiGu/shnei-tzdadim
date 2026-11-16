@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>אלבום החתונה · שני צדדים</title>
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Rubik:wght@400;500&display=swap">
+<style>
+:root { --bg:#F6F2F4; --ink:#241821; --muted:#776A73; --line:#E6DDE2; --gold:#A87E3A; --groom:#22686C; --bride:#B2486A; }
+@media (prefers-color-scheme: dark) { :root { --bg:#140F16; --ink:#F3ECF1; --muted:#A99BA6; --line:#352A37; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 Rubik, system-ui, sans-serif; }
+header { text-align: center; padding: 36px 16px 18px; }
+.cover { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; display: block; margin: 0 auto 12px; box-shadow: 0 6px 20px rgb(0 0 0 / .15); }
+h1 { font-family: "Frank Ruhl Libre", serif; font-weight: 700; font-size: clamp(30px, 8vw, 46px); margin: 0; line-height: 1.1; }
+h1 .amp { color: var(--gold); margin: 0 .2em; }
+.meta { color: var(--muted); margin-top: 6px; font-size: 14px; }
+main { max-width: 1100px; margin: 0 auto; padding: 0 12px 48px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px; }
+@media (min-width: 700px) { .grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; } }
+.tile { position: relative; aspect-ratio: 1; border: 0; padding: 0; overflow: hidden; border-radius: 6px; background: var(--line); cursor: pointer; }
+.tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile .play { position: absolute; bottom: 6px; left: 6px; background: rgb(0 0 0 / .55); color: #fff; border-radius: 99px; font-size: 11px; padding: 2px 8px; }
+.msg { text-align: center; color: var(--muted); padding: 60px 16px; }
+.lb { position: fixed; inset: 0; background: #000; display: flex; align-items: center; justify-content: center; z-index: 9; }
+.lb img, .lb video { max-width: 100%; max-height: 100%; }
+.lb .cap { position: absolute; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; text-align: center; color: #fff; text-shadow: 0 2px 8px #000; padding: 0 16px; }
+.lb button { position: absolute; background: rgb(255 255 255 / .15); color: #fff; border: 0; width: 44px; height: 44px; border-radius: 50%; font-size: 22px; cursor: pointer; }
+.lb .x { top: calc(14px + env(safe-area-inset-top, 0px)); right: 14px; }
+.lb .prev { right: 10px; top: 50%; } .lb .next { left: 10px; top: 50%; }
+footer { text-align: center; color: var(--muted); font-size: 13px; padding: 0 16px 40px; }
+footer a { color: inherit; }
+</style>
+</head>
+<body>
+<header id="hd"><div class="msg">טוענים את האלבום…</div></header>
+<main><div class="grid" id="grid"></div></main>
+<footer id="ft"></footer>
+<script>
+const SB = "https://yexzrxygjzzgsweiaqcm.supabase.co";
+const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlleHpyeHlnanp6Z3N3ZWlhcWNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2ODk0NzksImV4cCI6MjEwOTI2NTQ3OX0.oxbOFBA4XqjFJ4-WsBSNyh-60_4Rm8Me8CVxzpPKrJY";
+const PATH_RE = /^[0-9a-f-]{36}\/[A-Za-z0-9_-]+\.(jpg|webp|mp4|mov|webm)$/;
+const pub = p => PATH_RE.test(p || "") ? `${SB}/storage/v1/object/public/photos/${p}` : "";
+const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = s => document.querySelector(s);
+const fail = t => { $("#hd").innerHTML = `<div class="msg">${esc(t)}</div>`; };
+
+(async () => {
+  const share = new URLSearchParams(location.search).get("a") || "";
+  if (!/^[0-9a-f-]{36}$/i.test(share)) return fail("הקישור לא שלם. בקשו מהזוג קישור חדש");
+  let d;
+  try {
+    const r = await fetch(`${SB}/rest/v1/rpc/public_album`, { method: "POST", headers: { apikey: ANON, Authorization: "Bearer " + ANON, "Content-Type": "application/json" }, body: JSON.stringify({ p_share: share }) });
+    d = await r.json();
+    if (!r.ok) return fail(d && d.message === "too_many" ? "יותר מדי ניסיונות. נסו שוב בעוד כמה דקות" : "האלבום לא נטען. נסו שוב");
+  } catch { return fail("אין חיבור לאינטרנט. נסו שוב"); }
+  if (d.error) return fail("הקישור כבר לא פעיל. בקשו מהזוג קישור חדש");
+  const date = d.date ? new Date(d.date + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" }) : "";
+  document.title = `${d.groom} ו${d.bride} · אלבום החתונה`;
+  $("#hd").innerHTML = `${pub(d.cover) ? `<img class="cover" src="${pub(d.cover)}" alt="">` : ""}
+    <h1>${esc(d.groom)}<span class="amp">&amp;</span>${esc(d.bride)}</h1>
+    <div class="meta">${esc([date, d.venue].filter(Boolean).join(" · "))} · ${d.photos.length} תמונות וסרטונים</div>`;
+  const list = d.photos.filter(p => pub(p.thumb));
+  if (!list.length) $("#grid").outerHTML = `<div class="msg">עוד אין תמונות באלבום</div>`;
+  else $("#grid").innerHTML = list.map((p, i) => `<button class="tile" data-i="${i}" aria-label="${esc(p.caption || (p.kind === "video" ? "סרטון" : "תמונה"))}"><img src="${pub(p.thumb)}" alt="" loading="lazy" decoding="async">${p.kind === "video" ? `<span class="play">▶</span>` : ""}</button>`).join("");
+  const until = d.until ? new Date(d.until).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" }) : "";
+  $("#ft").innerHTML = `האלבום משותף איתכם${until ? " עד " + esc(until) : ""} · נוצר באפליקציה <a href="./">שני צדדים</a>`;
+
+  let cur = -1, lb = null;
+  const show = i => {
+    cur = (i + list.length) % list.length; const p = list[cur];
+    if (!lb) {
+      lb = document.createElement("div"); lb.className = "lb";
+      lb.innerHTML = `<div class="media"></div><div class="cap"></div><button class="x" aria-label="סגירה">✕</button><button class="prev" aria-label="הקודמת">›</button><button class="next" aria-label="הבאה">‹</button>`;
+      lb.querySelector(".x").onclick = close; lb.querySelector(".prev").onclick = () => show(cur - 1); lb.querySelector(".next").onclick = () => show(cur + 1);
+      document.body.appendChild(lb); document.body.style.overflow = "hidden";
+    }
+    const src = pub(p.path) || pub(p.thumb);
+    lb.querySelector(".media").innerHTML = p.kind === "video" ? `<video src="${src}" controls autoplay playsinline poster="${pub(p.thumb)}"></video>` : `<img src="${src}" alt="">`;
+    lb.querySelector(".cap").textContent = p.caption || "";
+  };
+  const close = () => { if (lb) { lb.remove(); lb = null; document.body.style.overflow = ""; } };
+  $("#grid") && $("#grid").addEventListener("click", e => { const t = e.target.closest("[data-i]"); if (t) show(+t.dataset.i); });
+  addEventListener("keydown", e => { if (!lb) return; if (e.key === "Escape") close(); if (e.key === "ArrowLeft") show(cur + 1); if (e.key === "ArrowRight") show(cur - 1); });
+})();
+</script>
+</body>
+</html>

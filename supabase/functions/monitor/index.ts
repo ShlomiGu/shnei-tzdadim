@@ -2,6 +2,7 @@
 //   dashboard - one snapshot (usage, AI, errors, reports, cron, recent health checks)
 //   check     - runs the health checks and stores the result; deep=true also runs the end-to-end self tests and a real AI call
 //   status    - the latest stored check, for the GitHub alert workflow
+//   report    - the owner's decision on a reported photo/teaser: hide it for everyone, or keep it and close the report
 const SB = Deno.env.get("SUPABASE_URL")!;
 const SR = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const A = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -129,6 +130,13 @@ Deno.serve(async (req) => {
   }
   try {
     if (body.action === "check") return json(await check(!!body.deep));
+    if (body.action === "report") {
+      if (!/^[0-9a-f-]{36}$/.test(String(body.id || ""))) return json({ error: "bad_input" }, 400);
+      const r = await fetch(`${SB}/rest/v1/rpc/monitor_report`, { method: "POST", headers: { ...HS, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_report: body.id, p_hide: !!body.hide }) });
+      if (!r.ok) return json({ error: "failed", detail: (await r.text()).slice(0, 200) }, 500);
+      return json(await r.json());
+    }
     if (body.action === "status") {
       const last = await fetch(`${SB}/rest/v1/health_runs?select=at,deep,ok,problems&order=at.desc&limit=1`, { headers: HS }).then((r) => r.json());
       const run = last?.[0] || null;

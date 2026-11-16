@@ -139,6 +139,9 @@ input[type="date"].input,input[type="time"].input{text-align:right}
 .tag.all{background:var(--gold-soft);color:var(--gold-ink)}
 .dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
 .notice{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:var(--r-s);background:var(--gold-soft);color:var(--gold-ink);font-size:14px;font-weight:500}
+.plan-banner{display:flex;gap:10px;align-items:center;width:100%;text-align:start;padding:12px 14px;border:0;border-radius:var(--r-s);background:var(--gold-soft);color:var(--gold-ink);font:inherit;font-size:14px;cursor:pointer}
+.plan-banner.warn{background:var(--bride-soft);color:var(--ink)}
+.plan-buy{display:flex;justify-content:space-between;align-items:center;gap:10px}.plan-price{font-weight:700;font-variant-numeric:tabular-nums}
 
 /* hero */
 .hero{text-align:center;padding:8px 0 4px}
@@ -410,6 +413,9 @@ button.st-chip{box-shadow:inset 0 0 0 1.5px var(--me-soft),var(--shadow)}
 button.st-chip .ic{margin-inline-start:auto;color:var(--me)}
 .page-h .chip{display:inline-flex;align-items:center;gap:6px}
 .show{position:fixed;inset:0;z-index:90;background:#000;animation:fade .3s}
+.show-qr{position:absolute;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:20px;width:150px;padding:10px;border-radius:14px;background:#fff;color:#241821;text-align:center;font-size:13px;line-height:1.3;box-shadow:0 6px 24px rgb(0 0 0 / .35)}
+.show-qr svg{display:block;width:100%;height:auto}.show-qr b{display:block;font-size:17px;letter-spacing:1px;margin-top:2px}
+@media (max-width:600px){.show-qr{display:none}}
 .show img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity 1.2s ease}
 .show img.on{opacity:1}
 .show-cap{position:absolute;left:0;right:0;bottom:calc(24px + env(safe-area-inset-bottom,0px));text-align:center;color:#fff;font-size:18px;font-weight:500;text-shadow:0 2px 10px rgb(0 0 0 / .7);padding:0 24px}
@@ -830,7 +836,9 @@ const ERR = {
   couple_taken: "מישהו כבר נרשם כאן כחתן או ככלה. הצטרפו כמלווים, ואם זו טעות, מי שנרשם יכול לשנות לתפקיד מלווה בהגדרות",
   too_many: "יותר מדי ניסיונות. חכו כמה דקות ונסו שוב",
   reveal_owner: "את שעת החשיפה קובעים הזוג או מי שפתח את החתונה",
-  bad_path: "ההעלאה לא הצליחה. נסו שוב"
+  bad_path: "ההעלאה לא הצליחה. נסו שוב",
+  quota_full: "המקום לתמונות של החתונה נגמר. אפשר להוסיף עוד בהגדרות ← שמירת התמונות",
+  archived: "האלבום עבר לארכיון ואי אפשר להוסיף אליו תמונות"
 };
 async function act(fn, okMsg) {
   try { const r = await fn(); if (okMsg) toast(okMsg, "check"); return r ?? true; }
@@ -860,7 +868,7 @@ async function refresh() {
   }
 }
 function notifyNew(prev, st) {
-  if (!prev) { S.seenTeaserIds = new Set(st.teasers.map(t => t.id)); return; }
+  if (!prev) { S.seenTeaserIds = new Set(st.teasers.map(t => t.id)); loadPlan(true).then(() => render()); retryPurchases(); return; }
   for (const t of st.teasers) {
     if (!S.seenTeaserIds.has(t.id)) {
       S.seenTeaserIds.add(t.id);
@@ -1118,7 +1126,7 @@ function vHome() {
   const mosaic = shown.map((p, i) => tileHtml(p, { ribbon: rv, more: i === take - 1 && n > take ? n - take : 0 })).join("");
   const photosToday = feed.length;
 
-  return `<div class="stack">
+  return `<div class="stack">${planBanner()}
     <section class="hero-c">
       ${heroCover()}
       <div class="hero-date">${esc(fmtDate(w.date))}${w.venue ? " · " + esc(w.venue) + (w.venue_city ? ", " + esc(w.venue_city) : "") : ""}</div>
@@ -1183,7 +1191,7 @@ function vHomeGuest() {
   const feed = guestFeed(), n = feed.length, take = n >= 6 ? 6 : n >= 3 ? 3 : n, shown = feed.slice(0, take);
   const items = schedSorted(); let cur = null, nxt = null;
   for (const it of items) { const t = itemTime(it.t); if (isNaN(t)) continue; if (t <= now) cur = it; else { nxt = it; break; } }
-  return `<div class="stack">
+  return `<div class="stack">${planBanner()}
     <section class="hero-c">
       ${heroCover()}
       <div class="hero-date">${esc(fmtDate(w.date))}${w.venue ? " · " + esc(w.venue) + (w.venue_city ? ", " + esc(w.venue_city) : "") : ""}</div>
@@ -2536,6 +2544,14 @@ function slideshow() {
   if (!pool().length) return toast("אין עדיין תמונות למצגת", "album");
   const el = document.createElement("div"); el.className = "show"; el.dir = "rtl";
   el.innerHTML = `<img class="a"><img class="b"><div class="show-cap"></div><button class="icon-btn show-x" aria-label="סגירה">${ic("x")}</button>`;
+  // on a big screen at the venue: a QR in the corner invites guests to join and add their photos
+  const gcode = W().guest_code;
+  if (gcode && !isGuest()) qrSvg(inviteUrl(gcode), 300).then(svg => {
+    if (!el.isConnected) return;
+    const q = document.createElement("div"); q.className = "show-qr";
+    q.innerHTML = `${svg}<span>מצטרפים ושולחים תמונות</span><b dir="ltr">${esc(fmtCode(gcode))}</b>`;
+    el.appendChild(q);
+  }, () => {});
   document.body.appendChild(el); document.body.style.overflow = "hidden";
   try { el.requestFullscreen && el.requestFullscreen().catch(() => {}); } catch {}
   let wake = null; try { navigator.wakeLock && navigator.wakeLock.request("screen").then(w => wake = w, () => {}); } catch {}
@@ -2644,6 +2660,16 @@ function vSchedule() {
 }
 
 /* ============ AI editing ============ */
+// a ready-made request: the AI builds a plan that fits this wedding (time, venue, names), as a proposal to approve
+const AI_STARTER = {
+  sched: "תתאים את הלו״ז ליום החתונה שלנו לפי שעת החופה והאולם: התארגנות, צילומים לפני, הגעה לאולם, קבלת פנים, חופה, ארוחה, ריקודים וסיום, עם זמנים הגיוניים ומקומות. תשאיר כל מה שכבר הוספנו בעצמנו.",
+  tasks: "תוסיף משימות צילום כיפיות ומותאמות לחבורה שלנו, עם השמות של החברים כשזה מתאים, וגם משימות הכנה חשובות ליום החתונה (טבעות, כתובה, מים לחתן, ערכת חירום). תשאיר את מה שכבר יש."
+};
+function aiStarter(kind) {
+  const view = kind === "sched" ? "schedule" : "tasks";
+  if (S.view !== view) { location.hash = view; }
+  setTimeout(() => { const ta = $("#ai-" + kind); if (!ta) return; ta.value = AI_STARTER[kind]; ta.scrollIntoView({ block: "center" }); aiGo(kind); }, 250);
+}
 function aiCard(kind) {
   const busy = S.aiBusy && S.aiBusy[kind];
   const ph = kind === "sched"
@@ -2651,6 +2677,7 @@ function aiCard(kind) {
     : "למשל: דני אחראי על הטבעות, ותוסיף משימת צילום של החתן עם אבא שלו";
   return `<section class="ai-card">
     <div class="row" style="gap:8px;margin-bottom:10px"><span class="ai-badge">${ic("sparkle", 16, 1.8)}</span><b>${kind === "sched" ? "לעדכן את הלו״ז במילים שלכם" : "לעדכן משימות במילים שלכם"}</b></div>
+    <button type="button" class="chip" data-act="ai-starter" data-kind="${kind}" style="margin-bottom:8px;display:inline-flex;align-items:center;gap:6px" ${busy ? "disabled" : ""}>${ic("sparkle", 14)}${kind === "sched" ? "לו״ז מותאם לחתונה שלנו" : "משימות מותאמות לחבורה שלנו"}</button>
     <textarea class="input" id="ai-${kind}" data-keep rows="2" maxlength="1200" placeholder="${ph}"></textarea>
     <button class="btn block" data-act="ai-go" data-kind="${kind}" style="margin-top:10px" ${busy ? "disabled" : ""}>${busy ? `<span class="spin"></span>חושב על זה…` : `${ic("sparkle", 18)}הצעת שינויים`}</button>
   </section>`;
@@ -3086,7 +3113,10 @@ function renderCreate() {
       p_venue: $("#cr-venue").value.trim(), p_venue_city: $("#cr-city").value.trim(), p_venue_custom: $("#cr-venue").dataset.custom === "1",
       p_team: side, p_role: role, p_name: name, p_template: $("#cr-tpl").checked
     }));
-    if (r && r.token) { await onAuthed(r.token); inviteSheet(true); }
+    if (r && r.token) {
+      await onAuthed(r.token); inviteSheet(true);
+      setTimeout(() => toast("רוצים לו״ז מותאם לחתונה שלכם?", "sparkle", { label: "להכין עם AI", fn: () => { closeSheet(); aiStarter("sched"); } }), 1500);
+    }
     else { btn.disabled = false; btn.innerHTML = `${ic("sparkle", 20)}יוצאים לדרך`; }
   });
 }
@@ -3400,7 +3430,8 @@ async function finishBatch(b) {
   if (b.ids.length && b.vis === "teaser") await act(() => rpc("send_teaser", { p_token: S.token, p_body: b.caption, p_photos: b.ids.slice(0, 4) }));
   await refresh();
   if (b.ids.length) toast(b.task ? `משימה הושלמה! +${Number(b.task.pts) || 0}` : b.ids.length === 1 ? "עלה בהצלחה" : `${b.ids.length} פריטים עלו`, "check");
-  if (b.fails) toast(b.err === "too_long" ? "הסרטון ארוך מדי לדחיסה (מעל 10 דקות). חתכו אותו לחלקים ונסו שוב" : b.err === "too_big" ? "הסרטון לא נדחס מספיק. נסו לחתוך אותו לחלק קצר יותר" : b.err === "quota" ? ERR.quota : b.fails === 1 ? "פריט אחד לא עלה. בדקו חיבור ונסו שוב" : `${b.fails} פריטים לא עלו. בדקו חיבור ונסו שוב`, "x");
+  if (b.fails && (b.err === "quota_full" || b.err === "archived")) toast(ERR[b.err], "x", b.err === "quota_full" ? { label: "להוספת מקום", fn: planSheet } : undefined);
+  else if (b.fails) toast(b.err === "too_long" ? "הסרטון ארוך מדי לדחיסה (מעל 10 דקות). חתכו אותו לחלקים ונסו שוב" : b.err === "too_big" ? "הסרטון לא נדחס מספיק. נסו לחתוך אותו לחלק קצר יותר" : b.err === "quota" ? ERR.quota : b.fails === 1 ? "פריט אחד לא עלה. בדקו חיבור ונסו שוב" : `${b.fails} פריטים לא עלו. בדקו חיבור ונסו שוב`, "x");
   if (UQ.items.every(x => x.state === "done" || x.state === "fail")) setTimeout(() => { if (UQ.items.every(x => x.state === "done" || x.state === "fail")) { UQ.items = []; renderUQ(); } }, 2200);
 }
 let uqRaf = 0;
@@ -3431,6 +3462,7 @@ async function processItem(it, attempt = 0) {
     if (e && e.code === "decode") { toast("קובץ אחד לא נפתח. נסו JPG או PNG", "x"); return null; }
     if (e && (e.code === "quota" || /413|exceed/i.test(String(e.message || e)))) { it.batch.err = "quota"; return it.registered || null; }
     if (e && (e.code === "too_long" || e.code === "too_big")) { it.batch.err = e.code; return null; }
+    if (e && (e.code === "quota_full" || e.code === "archived")) { it.batch.err = e.code; S.planAt = 0; return null; }
     if (attempt < 1 && !it.registered) { await new Promise(r => setTimeout(r, 1500)); return processItem(it, attempt + 1); }
     return it.registered || null;
   }
@@ -3815,6 +3847,141 @@ function letterSheet(l) {
 }
 
 /* settings */
+/* ============ a read-only album link for family and friends outside the app ============ */
+async function albumLinkSheet() {
+  let st;
+  try { st = await rpc("album_link_state", { p_token: S.token }); } catch { return toast(ERR.network, "x"); }
+  if (!st.can) return toast("את הקישור יוצרים הזוג או מי שפתח את החתונה", "lock");
+  const url = st.token ? `${SITE_URL}album.html?a=${st.token}` : "";
+  const live = st.token && st.until && new Date(st.until) > new Date();
+  const until = live ? new Date(st.until).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" }) : "";
+  openSheet("אלבום לשיתוף", `<div class="stack">
+    <p class="muted">קישור לצפייה בלבד, לסבתא, לחברים ולמשפחה שלא באפליקציה. ${st.revealed ? "" : "<b>הוא ייפתח רק אחרי החשיפה.</b> "}תמונות שסומנו כסוד לא מופיעות בו.</p>
+    ${live ? `<section class="card stack">
+        <div class="small muted">פעיל עד ${esc(until)}</div>
+        <input class="input" readonly dir="ltr" value="${esc(url)}" onclick="this.select()">
+        <div class="row" style="gap:8px"><button class="btn grow" id="al-share">${ic("send", 18)}שיתוף</button><button class="btn line grow" id="al-copy">העתקה</button></div>
+        <button class="btn ghost block" data-days="365">הארכה לשנה</button>
+        <button class="btn danger block" data-days="0">ביטול הקישור</button>
+      </section>`
+      : `<button class="btn block" data-days="90">${ic("sparkle", 18)}יצירת קישור ל-3 חודשים</button><button class="btn line block" data-days="365">יצירת קישור לשנה</button>`}
+  </div>`, sh => {
+    $$("[data-days]", sh).forEach(b => b.onclick = async () => {
+      const days = Number(b.dataset.days);
+      if (await act(() => rpc("album_link", { p_token: S.token, p_days: days }), days ? "הקישור מוכן" : "הקישור בוטל") !== false) albumLinkSheet();
+    });
+    const sb = $("#al-share", sh), cb = $("#al-copy", sh);
+    if (cb) cb.onclick = () => copyText(url, "הקישור הועתק");
+    if (sb) sb.onclick = async () => {
+      const data = { title: "אלבום החתונה", text: `האלבום של ${coupleName("groom")} ו${coupleName("bride")}`, url };
+      if (navigator.share) { try { await navigator.share(data); } catch {} } else copyText(url, "הקישור הועתק");
+    };
+  });
+}
+
+/* ============ storage, archive and keeping the album ============ */
+// every wedding: 1GB, archived 60 days after the date (only small copies stay). Anyone in the wedding can pay to keep it
+// forever or to add space. In the iPhone app payment goes through Apple (In-App Purchase); the website shows prices only.
+const PLAN_IDS = { keep: "com.shneitzdadim.app.keep", storage5: "com.shneitzdadim.app.storage5" };
+const PLAN_PRICE = { keep: "₪59.90", storage5: "₪29.90" };
+const STORE = IS_NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins.Store;
+let PLAN_PRICES_LOADED = false;
+async function loadPlan(force) {
+  if (!S.token) return null;
+  if (!force && S.plan && Date.now() - S.planAt < 30 * 60e3) return S.plan;
+  try { S.plan = await rpc("wedding_plan", { p_token: S.token }); S.planAt = Date.now(); } catch {}
+  return S.plan;
+}
+async function loadStorePrices() {
+  if (!STORE || PLAN_PRICES_LOADED) return;
+  try {
+    const r = await STORE.products({ ids: Object.values(PLAN_IDS) });
+    for (const p of (r && r.products) || []) { const k = Object.keys(PLAN_IDS).find(k => PLAN_IDS[k] === p.id); if (k && p.price) PLAN_PRICE[k] = p.price; }
+    PLAN_PRICES_LOADED = true;
+  } catch {}
+}
+const sizeTxt = b => b < 1073741824 ? Math.round(b / 1048576).toLocaleString("he-IL") + "MB" : (b / 1073741824).toLocaleString("he-IL", { maximumFractionDigits: 1 }) + "GB";
+function planBanner() {
+  const p = S.plan;
+  if (!p) return "";
+  const full = p.bytes / p.quota_bytes;
+  if (p.archived) return `<button class="plan-banner" data-act="plan">${ic("album", 18)}<span><b>האלבום בארכיון.</b> נשארו התמונות המוקטנות</span></button>`;
+  if (!p.keep_forever && p.days_left != null && p.days_left <= 30)
+    return `<button class="plan-banner warn" data-act="plan">${ic("bell", 18)}<span><b>${p.days_left <= 1 ? "מחר" : "בעוד " + p.days_left + " ימים"} האלבום עובר לארכיון.</b> הורידו את התמונות או שמרו אותו לתמיד</span></button>`;
+  if (full >= 0.9) return `<button class="plan-banner warn" data-act="plan">${ic("album", 18)}<span><b>המקום לתמונות כמעט נגמר</b> (${Math.round(full * 100)}%). אפשר להוסיף עוד</span></button>`;
+  return "";
+}
+async function planSheet() {
+  await loadStorePrices();
+  const p = await loadPlan(true);
+  if (!p) return toast(ERR.network, "x");
+  const pct = Math.min(100, Math.round(p.bytes / p.quota_bytes * 100));
+  const fmt = d => new Date(d + "T12:00:00").toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" });
+  const buyers = p.purchases.filter(x => x.product === "keep").map(x => x.by).filter(Boolean);
+  const status = p.archived ? `<p><b>האלבום עבר לארכיון.</b> התמונות המוקטנות נשארות כאן. אי אפשר להעלות תמונות חדשות.</p>`
+    : p.keep_forever ? `<p><b>האלבום נשמר לתמיד 💛</b>${buyers.length ? ` <span class="muted">· תודה ל${esc(buyers.join(" ול"))}</span>` : ""}</p>`
+    : `<p>האלבום יעבור לארכיון ב-<b>${fmt(p.archive_on)}</b> (${p.days_left > 0 ? "בעוד " + p.days_left + " ימים" : "היום"}). אחרי זה יישארו רק תמונות מוקטנות, והמקורות יימחקו.</p>`;
+  const buy = (k, label, sub) => `<button class="btn ${k === "keep" ? "" : "line"} block plan-buy" data-buy="${k}"><span>${label}</span><span class="plan-price">${esc(PLAN_PRICE[k])}</span></button><p class="small muted" style="margin-top:-4px">${sub}</p>`;
+  openSheet("שמירת התמונות", `<div class="stack">
+    <section class="card stack">
+      ${status}
+      <div><div class="small muted">נוצלו ${sizeTxt(p.bytes)} מתוך ${sizeTxt(p.quota_bytes)}</div><div class="progress" style="margin-top:6px"><i style="width:${pct}%;${pct > 90 ? "background:var(--bride)" : ""}"></i></div></div>
+    </section>
+    ${p.archived ? "" : `<section class="card stack">
+      ${p.keep_forever ? "" : buy("keep", "לשמור את האלבום לתמיד", "התמונות והסרטונים המקוריים לא יעברו לארכיון, לכל מי שבחתונה")}
+      ${buy("storage5", "עוד 5GB לתמונות ולסרטונים", "לחתונה הזאת, לכל מי שבחתונה. אפשר להוסיף כמה פעמים")}
+      ${STORE ? `<p class="small muted">התשלום מאובטח דרך Apple. כל אחד בחתונה יכול לשלם, וזה חל על כל החתונה.</p>`
+        : `<p class="small muted">התשלום יתאפשר בקרוב, באפליקציה לאייפון ובאתר.</p>`}
+    </section>`}
+    <button class="btn ghost block" id="pl-zip">${ic("album", 20)}הורדת כל התמונות והסרטונים</button>
+  </div>`, sh => {
+    $("#pl-zip", sh).onclick = () => backupZip($("#pl-zip", sh));
+    sh.querySelectorAll("[data-buy]").forEach(b => b.onclick = () => buyPlan(b.dataset.buy, b));
+  });
+}
+async function deliverPurchase(jws) {
+  let res;
+  try { res = await fetch(`${SUPABASE_URL}/functions/v1/pay-apple`, { method: "POST", headers: { ...AUTH, "Content-Type": "application/json" }, body: JSON.stringify({ token: S.token, jws }) }); }
+  catch { throw new ApiError("network"); }
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(d.error || "pay_failed");
+  return d;
+}
+async function buyPlan(kind, btn) {
+  if (!STORE) return toast("התשלום יתאפשר בקרוב", "sparkle");
+  const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spin"></span>פותחים את Apple…`;
+  let paid = false;
+  try {
+    const r = await STORE.purchase({ id: PLAN_IDS[kind], accountToken: ME().id });
+    if (r.status === "cancelled") return;
+    if (r.status === "pending") return toast("הרכישה ממתינה לאישור. נעדכן כשהיא תאושר", "bell");
+    paid = true;
+    btn.innerHTML = `<span class="spin"></span>מעדכנים את החתונה…`;
+    S.plan = await deliverPurchase(r.jws); S.planAt = Date.now();
+    await STORE.finish({ transactionId: r.transactionId }).catch(() => {});
+    closeSheet(); render();
+    toast(kind === "keep" ? "האלבום נשמר לתמיד 💛" : "נוספו 5GB לחתונה", "check");
+  } catch (e) {
+    if (e.code === "bad_token") return logout();
+    // the payment went through but we could not record it yet: it stays unfinished in StoreKit and is retried on the next start
+    toast(paid ? "התשלום התקבל. נעדכן את החתונה ברגע שיהיה חיבור" : "הרכישה לא הושלמה. לא חויבתם", paid ? "bell" : "x");
+    console.warn(e);
+  } finally { if (btn.isConnected) { btn.disabled = false; btn.innerHTML = old; } }
+}
+// purchases that were paid but not delivered (the app closed, no signal): deliver them now, for this member only
+async function retryPurchases() {
+  if (!STORE || !S.token || !S.st) return;
+  try {
+    const { items } = await STORE.unfinished();
+    for (const it of items || []) {
+      let acct = "";
+      try { acct = JSON.parse(atob(it.jws.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).appAccountToken || ""; } catch {}
+      if (acct && acct.toLowerCase() !== String(ME().id).toLowerCase()) continue;
+      try { S.plan = await deliverPurchase(it.jws); S.planAt = Date.now(); await STORE.finish({ transactionId: it.transactionId }); toast("הרכישה עודכנה בחתונה", "check"); render(); } catch {}
+    }
+  } catch {}
+}
+
 function settingsSheet(focus) {
   const w = W(), me = ME(), rv = isRevealed();
   if (isGuest()) {
@@ -3827,6 +3994,7 @@ function settingsSheet(focus) {
       <section class="card stack">
         <h3 class="card-t">גיבוי</h3>
         <button class="btn ghost block" id="st-zip">${ic("album", 20)}הורדת כל התמונות שאני רואה</button>
+        <button class="btn ghost block" data-act="plan">${ic("sparkle", 20)}שמירת התמונות ונפח</button>
       </section>
       <button class="btn danger block" id="st-out">יציאה מהמכשיר הזה</button>
       ${accountSection()}
@@ -3883,6 +4051,8 @@ function settingsSheet(focus) {
         <p class="small muted">תמונה שמוחקים נשמרת בשרת ואפשר להחזיר אותה. רק מי שמוחק את החשבון שלו יכול לבקש שגם הקבצים שלו יימחקו. בנוסף, אפשר להוריד עותק של כל מה שאתם רואים לקובץ ZIP. כדאי לעשות את זה מהמחשב בסוף הערב.</p>
         <div id="st-usage" class="small muted">בודקים כמה מקום תפוס…</div>
         <button class="btn ghost block" id="st-zip">${ic("album", 20)}הורדת כל התמונות והסרטונים</button>
+        <button class="btn ghost block" data-act="plan">${ic("sparkle", 20)}שמירת התמונות ונפח</button>
+        ${canCover() ? `<button class="btn ghost block" data-act="album-link">${ic("send", 20)}אלבום לשיתוף עם המשפחה</button>` : ""}
       </section>
       <section class="card stack">
         <h3 class="card-t">אני</h3>
@@ -4028,6 +4198,8 @@ document.addEventListener("click", async e => {
     case "settings": return settingsSheet(a.dataset.focus);
     case "album-tab": S.albumTab = a.dataset.tab; return render();
     case "sched-filter": S.schedFilter = a.dataset.f; return render();
+    case "plan": closeSheet(); return planSheet();
+    case "album-link": closeSheet(); return albumLinkSheet();
     case "task-filter": S.taskFilter = a.dataset.f; return render();
     case "photo": return openLightbox(id);
     case "add-sched": return schedSheet(null);
@@ -4048,6 +4220,7 @@ document.addEventListener("click", async e => {
     case "write-letter": return writeLetterSheet();
     case "letter": { const l = S.st.letters.find(x => x.id === id); if (l) letterSheet(l); return; }
     case "ai-go": return aiGo(a.dataset.kind);
+    case "ai-starter": return aiStarter(a.dataset.kind);
     case "status": return statusSheet();
     case "slideshow": return slideshow();
     case "recap": return recapSheet();
@@ -4062,6 +4235,7 @@ document.addEventListener("click", async e => {
   }
 });
 window.addEventListener("hashchange", () => {
+  if (location.hash === "#plan") { history.replaceState(null, "", "#home"); if (S.st) { setView("home"); planSheet(); } return; }
   if (location.hash === "#recap") { history.replaceState(null, "", "#home"); if (S.st) { setView("home"); if (RECAP_JOB) recapSheet(); } return; }
   if (S.st) setView(isGuest() && !GUEST_VIEWS.includes(location.hash.slice(1)) ? "home" : location.hash.slice(1)); });
 

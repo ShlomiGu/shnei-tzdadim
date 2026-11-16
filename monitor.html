@@ -34,6 +34,17 @@ th { color: var(--mut); font-weight: 600; border-top: 0; }
 .two { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; } @media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
 code { font-size: 12px; direction: ltr; unicode-bidi: embed; }
 .hide { display: none; }
+.rep { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid var(--line); }
+.rep:first-of-type { border-top: 0; }
+.rep .th { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; filter: blur(14px); cursor: pointer; flex: none; background: var(--line); }
+.rep .th.open { filter: none; }
+.rep .body { flex: 1; min-width: 0; }
+.rep .acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.rep .acts button { padding: 6px 10px; font-size: 13px; }
+button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.fun { display: flex; flex-direction: column; gap: 6px; }
+.fun .r { display: grid; grid-template-columns: 1fr 56px; gap: 8px; align-items: center; font-size: 13px; }
+.fun .b { height: 10px; border-radius: 6px; background: var(--line); overflow: hidden; } .fun .b > i { display: block; height: 100%; background: var(--acc); }
 </style>
 </head>
 <body>
@@ -67,6 +78,8 @@ const esc = x => String(x ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const num = n => Number(n || 0).toLocaleString("he-IL");
 const ago = t => { if (!t) return "—"; const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? "עכשיו" : m < 60 ? `לפני ${m} דק׳` : m < 1440 ? `לפני ${Math.round(m / 60)} שע׳` : `לפני ${Math.round(m / 1440)} ימים`; };
 const time = t => new Date(t).toLocaleString("he-IL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+const pubImg = p => /^[0-9a-f-]{36}\/[A-Za-z0-9_-]+\.(jpg|webp)$/.test(p || "") ? `${SB}/storage/v1/object/public/photos/${p}` : "";
+const PROD = { keep: "שמירה לתמיד", storage5: "5GB נוספים" };
 const mb = b => (b / 1048576).toLocaleString("he-IL", { maximumFractionDigits: 1 }) + " MB";
 let KEY = ""; try { KEY = localStorage.getItem("mon_key") || ""; } catch {}
 
@@ -139,12 +152,44 @@ function render(d, lastCheck) {
       ${lastCheck && lastCheck.results ? `<details style="margin-top:10px"><summary class="small">פירוט הבדיקה שהרצתם עכשיו</summary><pre class="small" style="white-space:pre-wrap;direction:ltr">${esc(JSON.stringify(lastCheck.results, null, 1))}</pre></details>` : ""}
     </section>
     ${(s.cron || []).length ? `<section class="card"><h2>הרצות מתוזמנות שנכשלו</h2><table>${s.cron.map(x => `<tr><td><code>${esc(time(x.at))}</code></td><td>${esc(x.jobname)}</td><td>${esc(x.msg)}</td></tr>`).join("")}</table></section>` : ""}
-    ${(s.reports || []).length ? `<section class="card"><h2>דיווחים פתוחים</h2><table>${s.reports.map(x => `<tr><td><code>${esc(time(x.at))}</code></td><td>${esc(x.kind)}</td><td>${esc(x.reason)}</td></tr>`).join("")}</table></section>` : ""}
+    ${(s.reports || []).length ? `<section class="card"><h2>דיווחים פתוחים · ${num(s.reports_open)}</h2>${s.reports.map(x => `<div class="rep">
+        ${x.kind === "photo" && pubImg(x.thumb) ? `<img class="th" src="${pubImg(x.thumb)}" alt="" title="לחיצה מציגה את התמונה">` : ""}
+        <div class="body">
+          <div class="small"><b>${({ photo: "תמונה", teaser: "טיזר", member: "משתמש" })[x.kind] || esc(x.kind)}</b> · ${esc(time(x.at))} · ${x.n} ${x.n == 1 ? "דיווח" : "דיווחים"}${x.hidden ? " · <span style='color:var(--bad)'>מוסתר כרגע</span>" : ""}</div>
+          ${x.reason ? `<div class="small muted">סיבה: ${esc(x.reason)}</div>` : ""}
+          ${x.text ? `<div class="small">"${esc(x.text)}"</div>` : ""}
+          ${x.kind === "member" ? "" : `<div class="acts"><button class="danger" data-rep="${esc(x.id)}" data-hide="1">הסתרה לכולם</button><button data-rep="${esc(x.id)}" data-hide="0">${x.hidden ? "החזרה וסגירה" : "תקין, לסגור"}</button></div>`}
+        </div></div>`).join("")}</section>` : ""}
+    <div class="two">
+      <section class="card">
+        <h2>איפה חתונות נתקעות</h2>
+        <div class="fun">${[["נפתחו", s.funnel.created], ["שני הצדדים הצטרפו", s.funnel.both_sides], ["הועלו תמונות", s.funnel.with_photos], ["הגיעו לחשיפה", s.funnel.revealed], ["עם אורחים", s.funnel.guests]].map(([l, n]) =>
+          `<div class="r"><div><div class="small">${l}</div><div class="b"><i style="width:${s.funnel.created ? Math.round(n / s.funnel.created * 100) : 0}%"></i></div></div><b class="small">${num(n)}</b></div>`).join("")}</div>
+      </section>
+      <section class="card">
+        <h2>רכישות וארכיון</h2>
+        <table>
+          <tr><td>רכישות (סה״כ / 30 ימים)</td><td>${num(s.purchases.total)} / ${num(s.purchases.last_30d)}</td></tr>
+          ${Object.entries(s.purchases.by_product || {}).map(([k, v]) => `<tr><td>${esc(PROD[k] || k)}</td><td>${num(v)}</td></tr>`).join("")}
+          <tr><td>נשמרות לתמיד</td><td>${num(s.archive.kept)}</td></tr>
+          <tr><td>בארכיון</td><td>${num(s.archive.archived)}</td></tr>
+        </table>
+        ${(s.archive.next_30d || []).length ? `<div class="small muted" style="margin-top:8px">עוברות לארכיון ב-30 הימים הקרובים:</div>${s.archive.next_30d.map(x => `<div class="small">${esc(x.wedding)} · ${esc(new Date(x.on_date + "T12:00:00").toLocaleDateString("he-IL"))}</div>`).join("")}` : ""}
+        ${(s.purchases.recent || []).length ? `<div class="small muted" style="margin-top:8px">אחרונות:</div>${s.purchases.recent.map(x => `<div class="small"><code>${esc(time(x.at))}</code> ${esc(PROD[x.product] || x.product)} · ${esc(x.wedding)}${x.env === "Sandbox" ? " · בדיקה" : ""}</div>`).join("")}` : ""}
+      </section>
+    </div>
     <section class="card">
       <h2>שגיאות אחרונות (שרת ואפליקציה)</h2>
       ${(s.events || []).length ? `<table><tr><th>מתי</th><th>מקור</th><th>הודעה</th></tr>${s.events.map(e => `<tr><td><code>${esc(time(e.at))}</code></td><td>${esc(e.source)}</td><td>${esc(e.msg)}${e.detail ? `<details><summary class="small muted">פרטים</summary><pre class="small" style="white-space:pre-wrap;direction:ltr">${esc(JSON.stringify(e.detail, null, 1))}</pre></details>` : ""}</td></tr>`).join("")}</table>` : `<div class="small muted">אין שגיאות 🎉</div>`}
     </section>`;
   $("#when").textContent = "עודכן " + new Date(s.at).toLocaleTimeString("he-IL");
+  document.querySelectorAll(".rep .th").forEach(i => i.onclick = () => i.classList.toggle("open"));
+  document.querySelectorAll("[data-rep]").forEach(b => b.onclick = async () => {
+    const hide = b.dataset.hide === "1";
+    if (hide && !confirm("להסתיר את התוכן הזה לכולם בחתונה?")) return;
+    b.disabled = true;
+    try { await call("report", { id: b.dataset.rep, hide }); await load(); } catch (e) { alert("לא הצליח: " + e.message); b.disabled = false; }
+  });
 }
 
 let lastCheck = null;

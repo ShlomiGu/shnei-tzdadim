@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.monitor]
 verify_jwt = true
+
+[functions.pay-apple]
+verify_jwt = true
