@@ -62,7 +62,12 @@ async function check(deep: boolean) {
     if (st.cron_failed_24h > 0) bad(`${st.cron_failed_24h} הרצות מתוזמנות נכשלו ב-24 שעות`);
     if (st.events_1h >= 30) bad(`${st.events_1h} שגיאות בשעה האחרונה`);
     const used = st.storage.bytes / st.storage.limit_bytes;
-    if (used > 0.85) bad(`האחסון מלא ב-${Math.round(used * 100)}%`);
+    // the owner upgrades Supabase to Pro at 800MB: from there every check fails (so an alert goes out) until the limit grows
+    const UPGRADE_AT = 800 * 1048576;
+    if (st.storage.bytes >= UPGRADE_AT && st.storage.limit_bytes <= 1073741824)
+      bad(`האחסון הגיע ל-${Math.round(st.storage.bytes / 1048576)}MB מתוך 1GB. הגיע הזמן לשדרג את Supabase ל-Pro`);
+    else if (used > 0.85) bad(`האחסון מלא ב-${Math.round(used * 100)}%`);
+    results.storage_mb = Math.round(st.storage.bytes / 1048576);
     if (st.reports_open > 0) results.reports_open = st.reports_open;
   }
 

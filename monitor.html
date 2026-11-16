@@ -134,8 +134,8 @@ function render(d, lastCheck) {
       </section>
       <section class="card">
         <h2>תשתית</h2>
-        <div class="small">אחסון: ${mb(s.storage.bytes)} מתוך ${mb(s.storage.limit_bytes)} (${Math.round(used * 100)}%)</div>
-        <div class="bar" style="margin:6px 0 12px"><i style="width:${Math.min(100, used * 100).toFixed(1)}%;${used > .85 ? "background:var(--bad)" : ""}"></i></div>
+        <div class="small">אחסון: ${mb(s.storage.bytes)} מתוך ${mb(s.storage.limit_bytes)} (${Math.round(used * 100)}%) · שדרוג ל-Pro ב-800MB</div>
+        <div class="bar" style="margin:6px 0 12px"><i style="width:${Math.min(100, used * 100).toFixed(1)}%;${s.storage.bytes >= 800 * 1048576 ? "background:var(--bad)" : ""}"></i></div>
         <table>
           <tr><td>מכשירים עם התראות</td><td>${num(s.push.devices)}</td></tr>
           <tr><td>התראות שנשלחו ב-24 שע׳</td><td>${num(s.push.sent_24h)}</td></tr>

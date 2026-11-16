@@ -3927,11 +3927,12 @@ async function planSheet() {
       ${status}
       <div><div class="small muted">נוצלו ${sizeTxt(p.bytes)} מתוך ${sizeTxt(p.quota_bytes)}</div><div class="progress" style="margin-top:6px"><i style="width:${pct}%;${pct > 90 ? "background:var(--bride)" : ""}"></i></div></div>
     </section>
-    ${p.archived ? "" : `<section class="card stack">
+    ${p.archived ? "" : STORE ? `<section class="card stack">
       ${p.keep_forever ? "" : buy("keep", "לשמור את האלבום לתמיד", "התמונות והסרטונים המקוריים לא יעברו לארכיון, לכל מי שבחתונה")}
       ${buy("storage5", "עוד 5GB לתמונות ולסרטונים", "לחתונה הזאת, לכל מי שבחתונה. אפשר להוסיף כמה פעמים")}
-      ${STORE ? `<p class="small muted">התשלום מאובטח דרך Apple. כל אחד בחתונה יכול לשלם, וזה חל על כל החתונה.</p>`
-        : `<p class="small muted">התשלום יתאפשר בקרוב, באפליקציה לאייפון ובאתר.</p>`}
+      <p class="small muted">התשלום מאובטח דרך Apple. כל אחד בחתונה יכול לשלם, וזה חל על כל החתונה.</p>
+    </section>` : `<section class="card stack">
+      <p>${p.keep_forever ? "" : "<b>שמירת האלבום לתמיד</b> ו"}<b>נפח נוסף</b> אפשר לרכוש באפליקציה של שני צדדים לאייפון. כל אחד בחתונה יכול, וזה חל על כל החתונה.</p>
     </section>`}
     <button class="btn ghost block" id="pl-zip">${ic("album", 20)}הורדת כל התמונות והסרטונים</button>
   </div>`, sh => {
@@ -3948,7 +3949,7 @@ async function deliverPurchase(jws) {
   return d;
 }
 async function buyPlan(kind, btn) {
-  if (!STORE) return toast("התשלום יתאפשר בקרוב", "sparkle");
+  if (!STORE) return toast("הרכישה זמינה באפליקציה לאייפון", "sparkle");
   const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spin"></span>פותחים את Apple…`;
   let paid = false;
   try {
